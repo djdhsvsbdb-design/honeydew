@@ -314,7 +314,7 @@ impl Rng {
     }
 
     fn chance(&mut self, probability: f64) -> bool {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64 < probability
+        ((self.next() >> 11) as f64) / ((1u64 << 53) as f64) < probability
     }
 }
 
