@@ -23,7 +23,7 @@ def encode_song(song):
         track=TRACKS.get(str(e.get("track","lead")).lower())
         if track is None: continue
         bar=max(0,min(15,int(e.get("bar",0))))
-        step=max(0,min(63,int(e.get("step",0))))
+        step=max(0,min(15,int(e.get("step",0))))
         pitch=max(0,min(127,int(e.get("pitch",60))))
         velocity=max(1,min(127,int(e.get("velocity",100))))
         duration=max(1,min(16,int(e.get("duration",4))))
@@ -41,9 +41,20 @@ class Songs(Dataset):
                 song=json.loads(line)
                 if not isinstance(song.get("events"),list) or not song["events"]: continue
                 ids=encode_song(song)
-                for start in range(0,max(1,len(ids)-1),block):
-                    chunk=ids[start:start+block+1]
-                    if len(chunk)>=2: self.rows.append(torch.tensor(chunk,dtype=torch.long))
+                # Keep each six-token event intact. Splitting the flat stream at an
+                # arbitrary token can teach the model invalid field orderings.
+                if block < 9:
+                    raise ValueError("--block must be at least 9 tokens")
+                style_token=ids[1]
+                event_tokens=ids[2:-1]
+                events_per_chunk=max(1,(block-3)//6)
+                chunks=[event_tokens[i:i+events_per_chunk*6]
+                        for i in range(0,len(event_tokens),events_per_chunk*6)]
+                for chunk_index,event_chunk in enumerate(chunks):
+                    sequence=[BOS,style_token,*event_chunk]
+                    if chunk_index == len(chunks)-1:
+                        sequence.append(EOS)
+                    self.rows.append(torch.tensor(sequence,dtype=torch.long))
             except Exception as exc:
                 raise ValueError(f"{path}:{line_no}: {exc}") from exc
         if not self.rows: raise ValueError(f"No usable songs in {path}")
@@ -83,6 +94,10 @@ def main():
     ap.add_argument("--batch-size",type=int,default=16); ap.add_argument("--block",type=int,default=512)
     ap.add_argument("--lr",type=float,default=3e-4); ap.add_argument("--seed",type=int,default=42)
     args=ap.parse_args()
+    if args.epochs < 1: ap.error("--epochs must be >= 1")
+    if args.batch_size < 1: ap.error("--batch-size must be >= 1")
+    if args.block < 9: ap.error("--block must be >= 9")
+    if args.lr <= 0: ap.error("--lr must be > 0")
     random.seed(args.seed); torch.manual_seed(args.seed)
     device="cuda" if torch.cuda.is_available() else "cpu"
     ds=Songs(args.data,args.block); loader=DataLoader(ds,batch_size=args.batch_size,shuffle=True,collate_fn=collate)
