@@ -110,6 +110,35 @@ fn progression(bars: u8, minor: bool) -> Vec<i32> {
 }
 
 fn make_drums(bars: u8, style: BeatStyle, rng: &mut Rng) -> Vec<Event> {
+    // Prefer the trained GRU model. The handcrafted pattern below remains a safe fallback
+    // if an embedded model cannot be decoded on a target platform.
+    let style_index = match style {
+        BeatStyle::HipHop => 0, BeatStyle::Trap => 1, BeatStyle::Drill => 2,
+        BeatStyle::Phonk => 3, BeatStyle::House => 4,
+    };
+    if let Some(pattern) = crate::ai_model::generate(style_index, usize::from(bars) * 16, 0.5) {
+        let mut events = Vec::new();
+        for (step, hits) in pattern.into_iter().enumerate() {
+            let bar = (step / 16) as f64;
+            let beat = (step % 16) as f64 * 0.25;
+            for (pad, hit) in hits.into_iter().enumerate() {
+                if hit {
+                    let velocity = match pad {
+                        0 => if step % 16 == 0 { 245 } else { 218 },
+                        1 => 225,
+                        2 => if step % 4 == 0 { 155 } else { 112 },
+                        _ => 135,
+                    };
+                    events.push(Event::Drum {
+                        pos: tick(bar * 4.0 + beat), len_beats: 0.05, pad: pad as u8, velocity,
+                        pan: Event::DEFAULT_PAN, value: Event::DEFAULT_PITCH, repeat: 0,
+                    });
+                }
+            }
+        }
+        events.sort_by_key(Event::pos);
+        if !events.is_empty() { return events; }
+    }
     let mut out = Vec::new();
     for bar in 0..bars as usize {
         let base = bar as f64 * 4.0;
