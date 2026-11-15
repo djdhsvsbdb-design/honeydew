@@ -169,8 +169,8 @@ fn make_bass(bars: u8, key: u8, scale: &[i32], roots: &[i32], style: BeatStyle, 
             BeatStyle::Trap | BeatStyle::Phonk => &[(0.0, false), (1.75, true), (2.5, false), (3.5, true)],
             BeatStyle::HipHop => &[(0.0, false), (2.0, true), (3.0, false)],
         };
-        for (beat, use_fifth) in *pattern {
-            let key = if *use_fifth && rng.chance(0.6) { fifth } else { root_note };
+        for &(beat, use_fifth) in pattern.iter() {
+            let key = if use_fifth && rng.chance(0.6) { fifth } else { root_note };
             out.push(note(base + beat, if style == BeatStyle::House { 0.8 } else { 0.42 }, key, 220));
         }
     }
