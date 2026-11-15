@@ -42,6 +42,8 @@ pub struct GeneratedTrack {
     pub channel_kind: ChannelKind,
     pub lane_kind: LaneKind,
     pub events: Vec<Event>,
+    /// Built-in audio effects (module type id, wet mix), appended after the instrument.
+    pub effects: Vec<(u16, f32)>,
 }
 
 /// A complete arrangement, ready to become normal editable Honeydew channels.
@@ -74,6 +76,14 @@ impl GeneratedBeat {
                 clip.events.clone_from(&track.events);
                 clip.fit_loop(beats_per_bar);
             }
+            // AI FX are ordinary Honeydew rack modules, so they render through the existing audio engine
+            // and remain editable in the channel rack after generation.
+            for &(type_id, wet_mix) in &track.effects {
+                let instance_id = channel.rack.add(type_id);
+                if let Some(effect) = channel.rack.get_mut(instance_id) {
+                    effect.common.0[1] = wet_mix.clamp(0.0, 1.0);
+                }
+            }
             created.push(index);
         }
         created
@@ -96,11 +106,42 @@ pub fn generate(settings: BeatSettings) -> GeneratedBeat {
     GeneratedBeat {
         bars,
         tracks: vec![
-            GeneratedTrack { name: "AI Drums", channel_kind: ChannelKind::Drums, lane_kind: LaneKind::Drums, events: drums },
-            GeneratedTrack { name: "AI Bass", channel_kind: ChannelKind::Synth(SynthKind::TransistorBass), lane_kind: LaneKind::Notes, events: bass },
-            GeneratedTrack { name: "AI Chords", channel_kind: ChannelKind::Synth(SynthKind::GmSynth), lane_kind: LaneKind::Notes, events: chords },
-            GeneratedTrack { name: "AI Lead", channel_kind: ChannelKind::Synth(SynthKind::MiniSynth), lane_kind: LaneKind::Notes, events: lead },
+            GeneratedTrack { name: "AI Drums", channel_kind: ChannelKind::Drums, lane_kind: LaneKind::Drums, events: drums, effects: drum_fx(settings.style) },
+            GeneratedTrack { name: "AI Bass", channel_kind: ChannelKind::Synth(SynthKind::TransistorBass), lane_kind: LaneKind::Notes, events: bass, effects: bass_fx(settings.style) },
+            GeneratedTrack { name: "AI Chords", channel_kind: ChannelKind::Synth(SynthKind::GmSynth), lane_kind: LaneKind::Notes, events: chords, effects: chord_fx(settings.style) },
+            GeneratedTrack { name: "AI Lead", channel_kind: ChannelKind::Synth(SynthKind::MiniSynth), lane_kind: LaneKind::Notes, events: lead, effects: lead_fx(settings.style) },
         ],
+    }
+}
+
+
+/// Style-aware starter chains. IDs are Honeydew's built-in effects: 8 compressor, 6 distortion,
+/// 32 reverb, 16 trance delay and 11 chorus. Mix is the rack module's wet/dry control.
+fn drum_fx(_style: BeatStyle) -> Vec<(u16, f32)> {
+    vec![(8, 0.22)]
+}
+
+fn bass_fx(style: BeatStyle) -> Vec<(u16, f32)> {
+    match style {
+        BeatStyle::Phonk => vec![(6, 0.38), (8, 0.24)],
+        BeatStyle::Trap | BeatStyle::Drill => vec![(6, 0.16), (8, 0.20)],
+        BeatStyle::HipHop => vec![(8, 0.18)],
+        BeatStyle::House => vec![(8, 0.26)],
+    }
+}
+
+fn chord_fx(style: BeatStyle) -> Vec<(u16, f32)> {
+    match style {
+        BeatStyle::House => vec![(32, 0.20), (11, 0.24)],
+        _ => vec![(32, 0.30)],
+    }
+}
+
+fn lead_fx(style: BeatStyle) -> Vec<(u16, f32)> {
+    match style {
+        BeatStyle::Phonk => vec![(32, 0.20), (16, 0.12)],
+        BeatStyle::House => vec![(32, 0.24), (16, 0.18)],
+        _ => vec![(32, 0.36), (16, 0.16)],
     }
 }
 
