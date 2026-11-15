@@ -15,7 +15,7 @@ The model uses a causal Transformer (6 layers, width 192, 6 attention heads, 512
 
 ## JSONL song format
 
-One song per line. Positions are in bars and sixteenth-note steps (0..63 per bar). Duration is in sixteenth-note steps.
+One song per line. Positions are in bars and sixteenth-note steps (0..15 within each bar). Duration is in sixteenth-note steps.
 
 ```json
 {"style":"hiphop","bpm":92,"key":"C","events":[
@@ -31,7 +31,7 @@ Allowed tracks: `drums`, `bass`, `chords`, `lead`. Pitch is MIDI 0..127; velocit
 
 ## Import MIDI files\n\nInstall the extra parser and convert a folder of MIDI files into the training format:\n\n```bash\npython -m pip install -r tools/ai/requirements.txt\npython tools/ai/midi_to_jsonl.py ./my_midi_library --style hiphop --out data/ai/train.jsonl\npython tools/ai/train_music.py --data data/ai/train.jsonl --epochs 30 --out models/honeydew-music.pt\n```\n\nThe importer maps MIDI channels and track names to drums, bass, chords and lead. Review the output and correct track labels/style tags where needed; tempo is metadata and positions are quantized to sixteenth notes. Keep only files you are allowed to use for model training.\n\n## Token layout (v1)
 
-Special tokens: PAD=0, BOS=1, EOS=2; style tokens 3..7 and 15; track tokens drums=8, bass=9, chords=10, lead=11; bar=16..31; step=32..95; pitch=128..255; velocity bucket=256..271; duration=272..287. Unused IDs are reserved for schema growth.
+Special tokens: PAD=0, BOS=1, EOS=2; style tokens 3..7 and 15; track tokens drums=8, bass=9, chords=10, lead=11; bar=16..31; step=32..47; pitch=128..255; velocity bucket=256..271; duration=272..287. Unused IDs are reserved for schema growth.
 
 ## Data quality and rights
 
