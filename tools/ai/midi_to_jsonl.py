@@ -14,14 +14,14 @@ def classify(name, channel):
 def convert(path, style):
     mid=mido.MidiFile(path)
     tpq=mid.ticks_per_beat
-    tempo=500000
+    tempo_events=[]
     events=[]
     for ti,track in enumerate(mid.tracks):
         name=next((m.name for m in track if m.type=="track_name"),f"track_{ti}")
         abs_tick=0; active={}
         for msg in track:
             abs_tick += msg.time
-            if msg.type=="set_tempo": tempo=msg.tempo
+            if msg.type=="set_tempo": tempo_events.append((abs_tick,msg.tempo))
             if msg.type not in ("note_on","note_off"): continue
             key=(msg.channel,msg.note)
             if msg.type=="note_on" and msg.velocity>0:
@@ -37,6 +37,9 @@ def convert(path, style):
                                "step":step_abs%16,"pitch":int(msg.note),"velocity":int(vel),
                                "duration":max(1,min(16,end_abs-step_abs))})
     if not events: return None
+    # The file may contain tempo changes; JSONL v1 stores one representative BPM.
+    # Use the tempo active at the beginning, not whichever track happened to be read last.
+    tempo=min(tempo_events,key=lambda item:item[0])[1] if tempo_events else 500000
     bpm=round(60_000_000/tempo)
     return {"style":style,"bpm":bpm,"source":path.name,"events":sorted(events,key=lambda e:(e["bar"],e["step"],e["track"],e["pitch"]))}
 
@@ -47,6 +50,7 @@ def main():
     ap.add_argument("--style",default="other",choices=["hiphop","trap","drill","phonk","house","other"])
     args=ap.parse_args()
     src=Path(args.input)
+    if not src.exists(): raise FileNotFoundError(f"Input path does not exist: {src}")
     files=[src] if src.is_file() else sorted(src.rglob("*.mid"))+sorted(src.rglob("*.midi"))
     count=0
     with Path(args.out).open("w",encoding="utf-8") as f:
