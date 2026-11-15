@@ -5,6 +5,7 @@ mod android;
 mod android_text;
 pub mod app;
 pub mod audio_bridge;
+pub mod ai_beat;
 pub mod audio_engine;
 pub mod audio_link;
 #[cfg(any(target_arch = "wasm32", test))]
