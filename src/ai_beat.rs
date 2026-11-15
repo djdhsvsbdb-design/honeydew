@@ -342,6 +342,26 @@ mod tests {
     }
 
     #[test]
+    fn generated_tracks_receive_editable_style_aware_effects() {
+        let beat = generate(BeatSettings { style: BeatStyle::Phonk, ..BeatSettings::default() });
+        assert!(beat.tracks.iter().all(|track| !track.effects.is_empty()));
+        let mut song = Song::default();
+        beat.append_to_song(&mut song);
+        let generated = &song.channels[1..];
+        assert_eq!(generated.len(), 4);
+        assert!(generated.iter().all(|channel| {
+            channel.rack.modules.iter().any(|module| {
+                honeydew_audio::effect_info(module.type_id).is_some()
+                    && (0.0..=1.0).contains(&module.common.0[1])
+            })
+        }));
+        let bass = generated.iter().find(|channel| channel.name.starts_with("Transistor Bass")).unwrap();
+        assert!(bass.rack.modules.iter().any(|module| module.type_id == 6));
+        let lead = generated.iter().find(|channel| channel.name.starts_with("MiniSynth")).unwrap();
+        assert!(lead.rack.modules.iter().any(|module| module.type_id == 32));
+    }
+
+    #[test]
     fn bar_count_and_key_are_safely_clamped() {
         let beat = generate(BeatSettings { bars: 0, key: 255, ..BeatSettings::default() });
         assert_eq!(beat.bars, 1);
