@@ -24,7 +24,7 @@ def make_song(rng, index):
     scale = choose(rng, list(SCALES.values()))
     bars = choose(rng, [4, 4, 4, 8])
     bpm_ranges = {
-        "hiphop": (78, 100), "trap": (130,  ik := 160),
+        "hiphop": (78, 100), "trap": (130, 160),
         "drill": (138, 152), "phonk": (140, 170), "house": (118, 130)
     }
     bpm = rng.randint(*bpm_ranges[style])
@@ -62,9 +62,13 @@ def make_song(rng, index):
                 if step in (7, 15) and rng.random() < .10:
                     add("drums", bar, step, 46, rng.randint(55, 90), 2)
 
-    # Bass: roots and fifths, with style-specific rhythmic density.
+    # Shared diatonic progression keeps bass, chords and lead in one harmony.
+    chord_roots = [0, 3, 5, 4] if scale == SCALES["minor"] else [0, 5, 3, 4]
+
+    # Bass follows the current chord root or its fifth, not one static root.
     for bar in range(bars):
-        root_pitch = root + choose(rng, [0, 0, 7, 12])
+        harmony_root = root + scale[chord_roots[bar % len(chord_roots)]]
+        root_pitch = harmony_root + choose(rng, [0, 0, 7, 12])
         steps = {
             "hiphop": [0, 6, 8, 14], "trap": [0, 3, 6, 8, 11, 14],
             "drill": [0, 5, 7, 10, 13], "phonk": [0, 4, 8, 12],
@@ -74,8 +78,7 @@ def make_song(rng, index):
             pitch = root_pitch if rng.random() < .78 else root_pitch + 7
             add("bass", bar, step, max(28, min(60, pitch)), rng.randint(78, 116), choose(rng, [2, 3, 4]))
 
-    # Chord stabs/pads using scale tones.
-    chord_roots = [0, 3, 5, 4] if scale == SCALES["minor"] else [0, 5, 3, 4]
+    # Chord stabs/pads use the same progression as the bass.
     for bar in range(bars):
         degree = chord_roots[bar % len(chord_roots)]
         chord = [root + scale[degree], root + scale[(degree + 2) % 7], root + scale[(degree + 4) % 7]]
