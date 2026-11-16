@@ -36,10 +36,18 @@ def generate_tokens(model, device, style, bars, max_events, temperature, top_k, 
     if prompt:
         prefix = encode_song(prompt)[:-1]
     tokens = list(prefix)
-    # Each event is six typed tokens: track, bar, step, pitch, velocity, duration.
-    for event_index in range(max_events):
+    # The first token of each event is a track. The boundary prediction can
+    # become the next event's track directly, avoiding a duplicated field.
+    pending_track = None
+    for _ in range(max_events):
+        if pending_track is None:
+            context = torch.tensor([tokens[-model.block:]], dtype=torch.long, device=device)
+            with torch.no_grad():
+                logits = model(context)[0, -1]
+            pending_track = choose_next(logits, list(TRACK_NAMES), temperature, top_k)
+        tokens.append(pending_track)
+        pending_track = None
         fields = [
-            list(TRACK_NAMES),
             list(range(BAR_BASE, BAR_BASE + bars)),
             list(range(STEP_BASE, STEP_BASE + 16)),
             list(range(PITCH_BASE, PITCH_BASE + 128)),
@@ -50,18 +58,15 @@ def generate_tokens(model, device, style, bars, max_events, temperature, top_k, 
             context = torch.tensor([tokens[-model.block:]], dtype=torch.long, device=device)
             with torch.no_grad():
                 logits = model(context)[0, -1]
-            token = choose_next(logits, allowed, temperature, top_k)
-            tokens.append(token)
-        # At event boundaries, allow the model to finish or continue.
+            tokens.append(choose_next(logits, allowed, temperature, top_k))
         context = torch.tensor([tokens[-model.block:]], dtype=torch.long, device=device)
         with torch.no_grad():
             logits = model(context)[0, -1]
-        allowed = [EOS, *TRACK_NAMES.keys()]
-        token = choose_next(logits, allowed, temperature, top_k)
-        if token == EOS:
+        boundary = choose_next(logits, [EOS, *TRACK_NAMES], temperature, top_k)
+        if boundary == EOS:
             tokens.append(EOS)
             break
-        tokens.append(token)
+        pending_track = boundary
     return tokens
 
 
@@ -109,7 +114,7 @@ def write_midi(song, path):
         track.append(mido.MetaMessage("track_name", name=name, time=0))
         if not track:  # pragma: no cover - track always has its name
             continue
-        if name == "drums":
+        if name == "drums" or (name == "bass" and not by_track["drums"]):
             track.append(mido.MetaMessage("set_tempo", tempo=tempo, time=0))
         items.sort(key=lambda item: (item[0], item[1]))
         previous = 0
@@ -155,9 +160,6 @@ def main():
     tokens = generate_tokens(model, device, args.style, args.bars, args.max_events,
                              args.temperature, args.top_k, args.seed, prompt)
     events = decode_events(tokens)
-    # Preserve prompt events exactly; generated events continue from its token prefix.
-    if prompt:
-        events = list(prompt["events"]) + events[len(prompt["events"]):]
     if not events:
         raise SystemExit("Model generated no decodable events; train longer or adjust sampling.")
     song = {"style": args.style, "bpm": args.bpm, "bars": args.bars, "events": events}
