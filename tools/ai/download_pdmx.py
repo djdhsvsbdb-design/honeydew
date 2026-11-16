@@ -122,7 +122,7 @@ def main():
                 "source_name": "PDMX public-domain/CC0 subset",
                 "source_url": SOURCE_URL,
                 "attribution": ATTRIBUTION,
-            }, ensure_ascii=False) + "\\n")
+            }, ensure_ascii=False) + "\n")
             extracted += 1
             if extracted >= args.limit:
                 break
