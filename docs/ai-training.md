@@ -55,6 +55,15 @@ python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 
 
 For a smaller pilot while collecting the full external half, add `--allow-shortfall`. Do not label a file with a genre unless the source metadata supports that label. The official Google Groove MIDI Dataset and Expanded Groove MIDI Dataset pages identify their releases as CC BY 4.0; E-GMD is primarily human-performed drum material, not a complete multi-instrument song corpus. Keep the original source metadata and attribution with every imported item. A dataset collection's license does not automatically clear the underlying compositions in unrelated web-scraped MIDI collections. Exclude files with unclear rights, non-commercial-only terms if commercial use is intended, or no explicit permission for model training.
 
+Download the first reviewed external source directly from Google's official E-GMD release. The script verifies the published SHA-256 before extracting the MIDI-only archive and writes a manifest for up to 10,000 files:
+
+```bash
+python tools/ai/download_egmd.py --limit 10000
+python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 --external-manifest data/ai/external/egmd/external-manifest.jsonl --out data/ai/honeydew-20k.jsonl
+```
+
+E-GMD contains human-played drum performances. Its entries are intentionally tagged `other`, not falsely relabelled as Hip-Hop/Trap/Drill/Phonk/House. This gives the model a substantial licensed drum-rhythm source; additional explicitly licensed multi-instrument MIDI sources are still needed for the external half to teach bass, chords and lead parts.
+
 Official sources:
 - Groove MIDI Dataset: https://magenta.withgoogle.com/datasets/groove
 - Expanded Groove MIDI Dataset: https://magenta.withgoogle.com/datasets/e-gmd
