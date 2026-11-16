@@ -1,21 +1,45 @@
 # Honeydew AI music model
 
-This is the continuing-training foundation for a multi-track, autoregressive music model. It predicts a stream of quantized musical events rather than raw audio, so outputs can become editable Honeydew sequencer clips.
+Honeydew's research model predicts quantized multi-track MIDI events, not raw audio. Generated events can be exported as MIDI and are intended to remain editable in the sequencer.
 
-## Install and train
+## Cloud training (Google Colab or a GPU PC)
+
+Install dependencies:
 
 ```bash
-python -m pip install torch
-python tools/ai/train_music.py --data data/ai/train.jsonl --epochs 30 --out models/honeydew-music.pt
-# Continue training from that checkpoint:
-python tools/ai/train_music.py --data data/ai/more-midi.jsonl --epochs 60 --out models/honeydew-music.pt --resume
+python -m pip install -r tools/ai/requirements.txt
 ```
 
-The model uses a causal Transformer (6 layers, width 192, 6 attention heads, 512-token context). It saves optimizer state as well as weights, so `--resume` continues training rather than starting over. Use a GPU if available; CPU works but is slower.
+Create a procedural smoke-test dataset:
+
+```bash
+python tools/ai/generate_synthetic.py --songs 12000 --out data/ai/synthetic.jsonl --seed 42
+```
+
+Train with a song-level validation split. The main checkpoint is updated after every epoch and can be resumed; the best validation checkpoint is saved separately:
+
+```bash
+python tools/ai/train_music.py --data data/ai/synthetic.jsonl --epochs 20 --batch-size 8 --block 256 --val-fraction 0.1 --out models/honeydew-music.pt
+python tools/ai/train_music.py --data data/ai/more-midi.jsonl --epochs 40 --batch-size 8 --block 256 --resume --out models/honeydew-music.pt
+```
+
+Each epoch prints training loss and validation loss. Lower validation loss is a useful signal, but it does not prove that generated music sounds good. Compare MIDI samples by listening as well. Checkpoints contain model weights, optimizer state, epoch, train/validation metrics and model configuration.
+
+## Generate MIDI and continue an existing arrangement
+
+Generate an eight-bar editable MIDI arrangement from the best checkpoint:
+
+```bash
+python tools/ai/generate_music.py --checkpoint models/honeydew-music.best.pt --style trap --bars 8 --bpm 145 --out output/honeydew-generated
+```
+
+This writes both `output/honeydew-generated.mid` and `output/honeydew-generated.json`. To condition generation on an existing Honeydew event-JSON file, pass `--prompt-json path/to/song.json`. Sampling controls include `--temperature`, `--top-k`, `--max-events` and `--seed`.
+
+The sampler constrains token types to valid event fields. It is an experimental sampler: it does not guarantee musical quality, and a small synthetic-only model may produce repetitive or incoherent arrangements. Use licensed or self-created MIDI for meaningful musical training.
 
 ## JSONL song format
 
-One song per line. Positions are in bars and sixteenth-note steps (0..15 within each bar). Duration is in sixteenth-note steps.
+One song per line. Positions are bars and sixteenth-note steps (0..15 within each bar); duration is in sixteenth-note steps.
 
 ```json
 {"style":"hiphop","bpm":92,"key":"C","events":[
@@ -27,12 +51,23 @@ One song per line. Positions are in bars and sixteenth-note steps (0..15 within 
 ]}
 ```
 
-Allowed tracks: `drums`, `bass`, `chords`, `lead`. Pitch is MIDI 0..127; velocity 1..127; duration 1..16. A song must contain at least one event. Keep training and validation/test songs separated by source/song, not by randomly splitting events from the same song, to reduce leakage.
+Allowed tracks: `drums`, `bass`, `chords`, `lead`. Pitch is MIDI 0..127; velocity 1..127; duration 1..16. Keep training and validation/test songs separated by source/song, not by splitting events from the same song.
 
-## Import MIDI files\n\nInstall the extra parser and convert a folder of MIDI files into the training format:\n\n```bash\npython -m pip install -r tools/ai/requirements.txt\npython tools/ai/midi_to_jsonl.py ./my_midi_library --style hiphop --out data/ai/train.jsonl\npython tools/ai/train_music.py --data data/ai/train.jsonl --epochs 30 --out models/honeydew-music.pt\n```\n\nThe importer maps MIDI channels and track names to drums, bass, chords and lead. Review the output and correct track labels/style tags where needed; tempo is metadata and positions are quantized to sixteenth notes. Keep only files you are allowed to use for model training.\n\n## Token layout (v1)
+## Import licensed MIDI
 
-Special tokens: PAD=0, BOS=1, EOS=2; style tokens 3..7 and 15; track tokens drums=8, bass=9, chords=10, lead=11; bar=16..31; step=32..47; pitch=128..255; velocity bucket=256..271; duration=272..287. Unused IDs are reserved for schema growth.
+```bash
+python tools/ai/midi_to_jsonl.py ./my_midi_library --style hiphop --out data/ai/train.jsonl
+python tools/ai/train_music.py --data data/ai/train.jsonl --epochs 30 --out models/honeydew-music.pt
+```
 
-## Data quality and rights
+The importer maps MIDI channels and track names to drums, bass, chords and lead. Review track labels and style tags. Only use MIDI/audio you created, have permission to use, or that is licensed for model training.
 
-Only train on MIDI/audio you created, have permission to use, or that is licensed for this purpose. Remove duplicate songs and corrupted files. The current small drum GRU is a separate experimental seed model trained on synthetic patterns; this Transformer is the general model intended for continued training. It is not yet connected to the live beatmaker UI or exported to the Android runtime.
+## Token layout (v1)
+
+Special tokens: PAD=0, BOS=1, EOS=2; style tokens 3..7 and 15; track tokens drums=8, bass=9, chords=10, lead=11; bar=16..31; step=32..47; pitch=128..255; velocity bucket=256..271; duration=272..287.
+
+## Product integration status
+
+- The Rust beatmaker already creates editable drum, bass, chord and lead tracks with style-aware built-in effect presets. This is deterministic procedural generation, not inference from the Transformer.
+- The Python Transformer trainer, validation, resumable checkpoints and MIDI sampler are research tooling.
+- The trained PyTorch checkpoint is not yet converted to a compact mobile format or connected to the Android inference/UI. An in-app natural-language assistant and learned sound-design model are future integration work; do not treat the Colab checkpoint as an Android-ready model.
