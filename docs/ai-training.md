@@ -37,35 +37,28 @@ This writes both `output/honeydew-generated.mid` and `output/honeydew-generated.
 
 The sampler constrains token types to valid event fields. It is an experimental sampler: it does not guarantee musical quality, and a small synthetic-only model may produce repetitive or incoherent arrangements. Use licensed or self-created MIDI for meaningful musical training.
 
-## Mixed 20,000-song dataset (10,000 synthetic + up to 10,000 licensed MIDI)
+## Mixed 20,000-song dataset (10,000 synthetic + 10,000 licensed MIDI)
 
-Build the mixed dataset after placing reviewed MIDI files on the Colab/PC filesystem. The builder creates 10,000 original patterns and imports up to 10,000 external files. It rejects files without explicit training permission and attribution, skips missing/invalid files, and deduplicates external files by SHA-256.
+The Colab notebook builds a mixed dataset: 10,000 original procedural patterns plus up to 10,000 external multitrack MIDI files from PDMX. PDMX includes a large public-domain/CC0 symbolic music collection with multiple instrument parts. The downloader selects only rows marked public domain or CC0, excludes license-conflict rows, prefers deduplicated arrangements, and verifies the published MD5 checksums before importing files.
 
-Create `data/ai/external-manifest.jsonl`, one JSON object per MIDI file:
-
-```json
-{"path":"data/ai/external/example.mid","style":"other","license":"CC BY 4.0","training_allowed":true,"source_name":"Expanded Groove MIDI Dataset v1.0.0","source_url":"https://magenta.withgoogle.com/datasets/e-gmd","attribution":"Google LLC, Expanded Groove MIDI Dataset v1.0.0, CC BY 4.0"}
-```
-
-Then run:
+Run:
 
 ```bash
-python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 --external-manifest data/ai/external-manifest.jsonl --out data/ai/honeydew-20k.jsonl
+python tools/ai/download_pdmx.py --limit 10000
+python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 --external-manifest data/ai/external/pdmx/external-manifest.jsonl --out data/ai/honeydew-20k.jsonl
 ```
 
-For a smaller pilot while collecting the full external half, add `--allow-shortfall`. Do not label a file with a genre unless the source metadata supports that label. The official Google Groove MIDI Dataset and Expanded Groove MIDI Dataset pages identify their releases as CC BY 4.0; E-GMD is primarily human-performed drum material, not a complete multi-instrument song corpus. Keep the original source metadata and attribution with every imported item. A dataset collection's license does not automatically clear the underlying compositions in unrelated web-scraped MIDI collections. Exclude files with unclear rights, non-commercial-only terms if commercial use is intended, or no explicit permission for model training.
+The imported files retain source, license, and attribution metadata. Genres are only mapped to Hip-Hop when PDMX metadata explicitly identifies hip-hop; other genres remain `other` rather than being mislabeled as Trap, Drill, Phonk, or House. The PDMX release notes identify a subset with conflicting internal and public-facing license metadata; this downloader excludes those records and follows the authors' recommendation to use the no-license-conflict subset.
 
-Download the first reviewed external source directly from Google's official E-GMD release. The script verifies the published SHA-256 before extracting the MIDI-only archive and writes a manifest for up to 10,000 files:
+A second, drum-focused source is available from Google's E-GMD release. It is CC BY 4.0 and contains human-played drum performances, not full multi-instrument songs. Download it separately only if more drum-specific training data is needed:
 
 ```bash
 python tools/ai/download_egmd.py --limit 10000
-python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 --external-manifest data/ai/external/egmd/external-manifest.jsonl --out data/ai/honeydew-20k.jsonl
 ```
 
-E-GMD contains human-played drum performances. Its entries are intentionally tagged `other`, not falsely relabelled as Hip-Hop/Trap/Drill/Phonk/House. This gives the model a substantial licensed drum-rhythm source; additional explicitly licensed multi-instrument MIDI sources are still needed for the external half to teach bass, chords and lead parts.
-
 Official sources:
-- Groove MIDI Dataset: https://magenta.withgoogle.com/datasets/groove
+- PDMX Zenodo release: https://zenodo.org/records/14984509
+- PDMX project and paper: https://github.com/pnlong/PDMX
 - Expanded Groove MIDI Dataset: https://magenta.withgoogle.com/datasets/e-gmd
 
 ## JSONL song format
