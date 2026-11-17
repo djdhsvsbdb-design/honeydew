@@ -164,22 +164,6 @@ class GPT(nn.Module):
         return self.head(self.norm(hidden))
 
 
-def read_songs(path):
-    songs = []
-    for line_no, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            song = json.loads(line)
-            if isinstance(song.get("events"), list) and song["events"]:
-                songs.append(song)
-        except Exception as exc:
-            raise ValueError(f"{path}:{line_no}: {exc}") from exc
-    if len(songs) < 2:
-        raise ValueError("Need at least two valid songs for train/validation split")
-    return songs
-
-
 def token_loss(model, loader, device, scaler=None):
     model.eval()
     total_loss = 0.0
