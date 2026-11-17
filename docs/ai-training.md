@@ -23,7 +23,7 @@ python tools/ai/train_music.py --data data/ai/synthetic.jsonl --epochs 20 --batc
 python tools/ai/train_music.py --data data/ai/more-midi.jsonl --epochs 40 --batch-size 8 --block 256 --resume --out models/honeydew-music.pt
 ```
 
-Each epoch prints training loss and validation loss. Lower validation loss is a useful signal, but it does not prove that generated music sounds good. Compare MIDI samples by listening as well. Checkpoints contain model weights, optimizer state, epoch, train/validation metrics and model configuration.
+The trainer indexes JSONL rows by byte offset and loads song chunks lazily with a small bounded cache, rather than keeping all parsed songs and token chunks in RAM. Each epoch prints training loss and validation loss. Lower validation loss is a useful signal, but it does not prove that generated music sounds good. Compare MIDI samples by listening as well. Checkpoints contain model weights, optimizer state, epoch, train/validation metrics and model configuration.
 
 ## Generate MIDI and continue an existing arrangement
 
