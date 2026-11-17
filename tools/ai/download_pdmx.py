@@ -99,8 +99,8 @@ def main():
         if not required.issubset(reader.fieldnames or []):
             raise SystemExit(f"PDMX.csv is missing required columns: {sorted(required)}")
         for row in reader:
-            license_name = str(row.get("license", "")).strip().lower().replace("-", "").replace("_", "")
-            if license_name not in ("publicdomain", "cc0", "cc01.0"):
+            license_name = "".join(ch for ch in str(row.get("license", "")).strip().lower() if ch.isalnum() or ch == ".")
+            if license_name != "publicdomain" and not license_name.startswith("cc0"):
                 continue
             if truth(row.get("license_conflict", "false")):
                 continue
@@ -126,7 +126,9 @@ def main():
     if manifest.exists():
         for line in manifest.read_text(encoding="utf-8").splitlines():
             try:
-                completed.add(str(Path(json.loads(line)["path"]).resolve()))
+                recorded_path = Path(json.loads(line)["path"]).expanduser().resolve()
+                if recorded_path.is_file():
+                    completed.add(str(recorded_path))
             except (ValueError, KeyError, json.JSONDecodeError):
                 continue
     extracted = len(completed)
