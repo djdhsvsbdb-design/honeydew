@@ -134,6 +134,8 @@ def main():
     # files already recorded, so an interrupted extraction does not start over.
     with tarfile.open(archive, "r:gz") as tar, manifest.open("a", encoding="utf-8") as out:
         for member in tar:
+            if extracted >= args.limit:
+                break
             if not member.isfile():
                 continue
             name = safe_member_name(member.name)
