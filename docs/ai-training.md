@@ -16,10 +16,10 @@ Create a procedural smoke-test dataset:
 python tools/ai/generate_synthetic.py --songs 12000 --out data/ai/synthetic.jsonl --seed 42
 ```
 
-Train with a song-level validation split. The main checkpoint is updated after every epoch and can be resumed; the best validation checkpoint is saved separately:
+Train with a song-level validation split. The main checkpoint is written atomically every 100 optimizer steps (configurable with `--save-every-steps`) and after every epoch. It includes model, optimizer, AMP scaler, random-generator states, epoch, batch position and running metrics, so `--resume` continues from the last completed batch. The best validation checkpoint is saved separately:
 
 ```bash
-python tools/ai/train_music.py --data data/ai/synthetic.jsonl --epochs 20 --batch-size 8 --block 256 --val-fraction 0.1 --out models/honeydew-music.pt
+python tools/ai/train_music.py --data data/ai/synthetic.jsonl --epochs 20 --batch-size 8 --block 256 --val-fraction 0.1 --save-every-steps 100 --out models/honeydew-music.pt
 python tools/ai/train_music.py --data data/ai/more-midi.jsonl --epochs 40 --batch-size 8 --block 256 --resume --out models/honeydew-music.pt
 ```
 
@@ -39,7 +39,7 @@ The sampler constrains token types to valid event fields. It is an experimental 
 
 ## Mixed 20,000-song dataset (10,000 synthetic + 10,000 licensed MIDI)
 
-The Colab notebook builds a mixed dataset: 10,000 original procedural patterns plus up to 10,000 external multitrack MIDI files from PDMX. PDMX includes a large public-domain/CC0 symbolic music collection with multiple instrument parts. The downloader selects only rows marked public domain or CC0, excludes license-conflict rows, prefers deduplicated arrangements, and verifies the published MD5 checksums before importing files.
+The Colab notebook stores the PDMX archive, extracted MIDI, resumable JSONL build, pipeline status and model checkpoints under `MyDrive/Honeydew`. PDMX downloads resume from `.part` files, extraction appends a manifest as each file completes, and dataset construction resumes from `*.inprogress`. The Colab notebook builds a mixed dataset: 10,000 original procedural patterns plus up to 10,000 external multitrack MIDI files from PDMX. PDMX includes a large public-domain/CC0 symbolic music collection with multiple instrument parts. The downloader selects only rows marked public domain or CC0, excludes license-conflict rows, prefers deduplicated arrangements, and verifies the published MD5 checksums before importing files.
 
 Run:
 
