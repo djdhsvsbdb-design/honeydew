@@ -182,8 +182,6 @@ def main():
     train_songs, val_songs = songs[val_count:], songs[:val_count]
     train_ds = SongChunks(train_songs, args.block)
     val_ds = SongChunks(val_songs, args.block)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size,
-                              shuffle=True, collate_fn=collate)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             shuffle=False, collate_fn=collate)
 
@@ -245,7 +243,6 @@ def main():
         total_loss = resume_loss_sum if epoch == start_epoch else 0.0
         total_tokens = resume_tokens if epoch == start_epoch else 0
         skip_batches = resume_batch if epoch == start_epoch else 0
-        last_save = time.monotonic()
         for batch_index, (x, y) in enumerate(train_loader):
             if batch_index < skip_batches:
                 continue
