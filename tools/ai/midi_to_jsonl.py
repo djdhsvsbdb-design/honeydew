@@ -51,9 +51,11 @@ def main():
     args=ap.parse_args()
     src=Path(args.input)
     if not src.exists(): raise FileNotFoundError(f"Input path does not exist: {src}")
-    files=[src] if src.is_file() else sorted(src.rglob("*.mid"))+sorted(src.rglob("*.midi"))
+    files=[src] if src.is_file() else sorted(p for p in src.rglob("*") if p.is_file() and p.suffix.lower() in (".mid", ".midi"))
     count=0
-    with Path(args.out).open("w",encoding="utf-8") as f:
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w",encoding="utf-8") as f:
         for p in files:
             try:
                 song=convert(p,args.style)
