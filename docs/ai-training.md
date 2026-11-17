@@ -37,15 +37,15 @@ This writes both `output/honeydew-generated.mid` and `output/honeydew-generated.
 
 The sampler constrains token types to valid event fields. It is an experimental sampler: it does not guarantee musical quality, and a small synthetic-only model may produce repetitive or incoherent arrangements. Use licensed or self-created MIDI for meaningful musical training.
 
-## Mixed 20,000-song dataset (10,000 synthetic + 10,000 licensed MIDI)
+## Mixed 200,000-example dataset (10,000 synthetic + up to 190,000 licensed MIDI)
 
 The Colab notebook stores the PDMX archive, extracted MIDI, resumable JSONL build, pipeline status and model checkpoints under `MyDrive/Honeydew`. PDMX downloads resume from `.part` files, extraction appends a manifest as each file completes, and dataset construction resumes from `*.inprogress`. The Colab notebook builds a mixed dataset: 10,000 original procedural patterns plus up to 10,000 external multitrack MIDI files from PDMX. PDMX includes a large public-domain/CC0 symbolic music collection with multiple instrument parts. The downloader selects only rows marked public domain or CC0, excludes license-conflict rows, prefers deduplicated arrangements, and verifies the published MD5 checksums before importing files.
 
 Run:
 
 ```bash
-python tools/ai/download_pdmx.py --limit 10000
-python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 10000 --external-manifest data/ai/external/pdmx/external-manifest.jsonl --out data/ai/honeydew-20k.jsonl
+python tools/ai/download_pdmx.py --limit 190000
+python tools/ai/build_dataset.py --synthetic-songs 10000 --external-limit 190000 --external-manifest data/ai/external/pdmx/external-manifest.jsonl --out data/ai/honeydew-200k.jsonl
 ```
 
 The imported files retain source, license, and attribution metadata. Genres are only mapped to Hip-Hop when PDMX metadata explicitly identifies hip-hop; other genres remain `other` rather than being mislabeled as Trap, Drill, Phonk, or House. The PDMX release notes identify a subset with conflicting internal and public-facing license metadata; this downloader excludes those records and follows the authors' recommendation to use the no-license-conflict subset.
