@@ -7,6 +7,8 @@ so chunks from one song can never leak between train and validation.
 import argparse
 import json
 import random
+import os
+import time
 from pathlib import Path
 
 import torch
@@ -143,6 +145,15 @@ def token_loss(model, loader, device, scaler=None):
     return total_loss / max(1, total_tokens)
 
 
+def atomic_save(checkpoint, path):
+    """Write a checkpoint atomically so an interrupted write cannot corrupt the last good file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    torch.save(checkpoint, temporary)
+    os.replace(temporary, path)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True)
@@ -154,9 +165,11 @@ def main():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val-fraction", type=float, default=0.1)
+    parser.add_argument("--save-every-steps", type=int, default=100,
+                        help="write a resumable checkpoint every N optimizer steps (0 disables step saves)")
     args = parser.parse_args()
-    if args.epochs < 1 or args.batch_size < 1 or args.block < 9 or args.lr <= 0:
-        parser.error("epochs/batch-size must be positive, block >= 9, and lr > 0")
+    if args.epochs < 1 or args.batch_size < 1 or args.block < 9 or args.lr <= 0 or args.save_every_steps < 0:
+        parser.error("epochs/batch-size must be positive, block >= 9, lr > 0, save-every-steps >= 0")
     if not 0.05 <= args.val_fraction <= 0.4:
         parser.error("--val-fraction must be between 0.05 and 0.4")
 
@@ -176,25 +189,66 @@ def main():
 
     model = GPT(args.block).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.1)
-    start_epoch, best_val = 0, float("inf")
+    start_epoch, resume_batch, best_val = 0, 0, float("inf")
+    resume_loss_sum, resume_tokens = 0.0, 0
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     best_out = out.with_name(out.stem + ".best" + out.suffix)
+    scaler = torch.amp.GradScaler("cuda", enabled=device == "cuda")
     if args.resume and out.exists():
         checkpoint = torch.load(out, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
+        if "scaler" in checkpoint:
+            scaler.load_state_dict(checkpoint["scaler"])
         start_epoch = int(checkpoint.get("epoch", 0))
+        resume_batch = int(checkpoint.get("batch_in_epoch", 0))
+        resume_loss_sum = float(checkpoint.get("epoch_loss_sum", 0.0))
+        resume_tokens = int(checkpoint.get("epoch_tokens", 0))
         best_val = float(checkpoint.get("best_val_loss", float("inf")))
+        if "python_rng_state" in checkpoint:
+            random.setstate(checkpoint["python_rng_state"])
+        if "torch_rng_state" in checkpoint:
+            torch.set_rng_state(checkpoint["torch_rng_state"])
+        if device == "cuda" and checkpoint.get("cuda_rng_state") is not None:
+            torch.cuda.set_rng_state_all(checkpoint["cuda_rng_state"])
+        print(f"Resuming at epoch {start_epoch + 1}, batch {resume_batch + 1}", flush=True)
 
-    scaler = torch.amp.GradScaler("cuda", enabled=device == "cuda")
     print(f"songs={len(songs)} train={len(train_songs)} validation={len(val_songs)} "
           f"train_chunks={len(train_ds)} val_chunks={len(val_ds)} device={device}", flush=True)
+    global_step = int(checkpoint.get("global_step", 0)) if args.resume and out.exists() else 0
+
+    def make_checkpoint(epoch_index, batch_in_epoch, loss_sum, token_count, train_loss=None, val_loss=None):
+        return {
+            "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+            "scaler": scaler.state_dict(),
+            "epoch": epoch_index, "batch_in_epoch": batch_in_epoch,
+            "epoch_loss_sum": loss_sum, "epoch_tokens": token_count,
+            "global_step": global_step, "best_val_loss": best_val,
+            "train_loss": train_loss, "val_loss": val_loss,
+            "python_rng_state": random.getstate(),
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": torch.cuda.get_rng_state_all() if device == "cuda" else None,
+            "config": {"vocab": VOCAB, "block": args.block, "width": 192,
+                       "layers": 6, "heads": 6, "batch_size": args.batch_size},
+            "dataset": str(args.data), "styles": STYLES,
+        }
 
     for epoch in range(start_epoch, args.epochs):
+        # A deterministic per-epoch shuffle lets a resumed run skip completed batches.
+        epoch_generator = torch.Generator()
+        epoch_generator.manual_seed(args.seed + epoch)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,
+                                  shuffle=True, collate_fn=collate,
+                                  generator=epoch_generator)
         model.train()
-        total_loss, total_tokens = 0.0, 0
-        for x, y in train_loader:
+        total_loss = resume_loss_sum if epoch == start_epoch else 0.0
+        total_tokens = resume_tokens if epoch == start_epoch else 0
+        skip_batches = resume_batch if epoch == start_epoch else 0
+        last_save = time.monotonic()
+        for batch_index, (x, y) in enumerate(train_loader):
+            if batch_index < skip_batches:
+                continue
             x, y = x.to(device), y.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type="cuda", enabled=device == "cuda"):
@@ -209,28 +263,27 @@ def main():
             count = int(y.ne(PAD).sum().item())
             total_loss += float(loss.item()) * count
             total_tokens += count
+            global_step += 1
+
+            if args.save_every_steps and global_step % args.save_every_steps == 0:
+                atomic_save(make_checkpoint(epoch, batch_index + 1, total_loss, total_tokens), out)
+                print(f"checkpoint saved: epoch={epoch + 1} batch={batch_index + 1} "
+                      f"step={global_step} path={out}", flush=True)
 
         train_loss = total_loss / max(1, total_tokens)
         val_loss = token_loss(model, val_loader, device)
         improved = val_loss < best_val
         if improved:
             best_val = val_loss
-        checkpoint = {
-            "model": model.state_dict(), "optimizer": optimizer.state_dict(),
-            "epoch": epoch + 1, "best_val_loss": best_val,
-            "train_loss": train_loss, "val_loss": val_loss,
-            "config": {"vocab": VOCAB, "block": args.block, "width": 192,
-                       "layers": 6, "heads": 6},
-            "dataset": str(args.data), "styles": STYLES,
-        }
-        # The main checkpoint is updated after every epoch and is resumable.
-        torch.save(checkpoint, out)
+        finished = make_checkpoint(epoch + 1, 0, 0.0, 0, train_loss, val_loss)
+        atomic_save(finished, out)
         if improved:
-            torch.save(checkpoint, best_out)
+            atomic_save(finished, best_out)
         print(f"epoch {epoch + 1}/{args.epochs} train_loss={train_loss:.4f} "
               f"val_loss={val_loss:.4f} best_val={best_val:.4f} "
               f"checkpoint={out} best={'updated' if improved else 'unchanged'}",
               flush=True)
+        resume_batch, resume_loss_sum, resume_tokens = 0, 0.0, 0
 
 
 if __name__ == "__main__":
