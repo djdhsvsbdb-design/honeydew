@@ -67,15 +67,46 @@ def main():
     rows = load_manifest(args.external_manifest)
     rng = random.Random(args.seed)
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    progress_file = args.out.with_suffix(args.out.suffix + ".inprogress")
     seen_hashes = set()
+    completed_synthetic = set()
     synthetic_count = external_count = skipped = 0
 
-    with args.out.open("w", encoding="utf-8") as output:
+    # Recover complete JSONL rows after an interruption; discard only a damaged
+    # final line, never the already completed examples.
+    if progress_file.exists():
+        valid_lines = []
+        for line in progress_file.read_text(encoding="utf-8").splitlines():
+            try:
+                item = json.loads(line)
+                valid_lines.append(json.dumps(item, ensure_ascii=False, separators=(",", ":")))
+                if item.get("source_type") == "synthetic":
+                    completed_synthetic.add(int(item.get("source_index", -1)))
+                    synthetic_count += 1
+                elif item.get("source_type") == "licensed_external":
+                    digest = item.get("source_sha256")
+                    if digest:
+                        seen_hashes.add(digest)
+                        external_count += 1
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+        progress_file.write_text("\n".join(valid_lines) + ("\n" if valid_lines else ""), encoding="utf-8")
+        print(f"Resuming dataset: synthetic={synthetic_count}, external={external_count}", flush=True)
+
+    with progress_file.open("a", encoding="utf-8") as output:
+        # Replaying the deterministic generator restores its RNG position after
+        # a restart; only missing indexes are written.
         for index in range(args.synthetic_songs):
             song = make_song(rng, index)
-            song.update({"source_type": "synthetic", "source_name": "Honeydew procedural generator"})
+            if index in completed_synthetic:
+                continue
+            song.update({"source_type": "synthetic", "source_index": index,
+                         "source_name": "Honeydew procedural generator"})
             output.write(json.dumps(song, ensure_ascii=False, separators=(",", ":")) + "\n")
+            output.flush()
             synthetic_count += 1
+            if synthetic_count % 250 == 0:
+                print(f"Dataset checkpoint: synthetic={synthetic_count}/{args.synthetic_songs}", flush=True)
 
         for row in rows:
             if external_count >= args.external_limit:
@@ -108,15 +139,20 @@ def main():
                 "source_sha256": digest,
             })
             output.write(json.dumps(song, ensure_ascii=False, separators=(",", ":")) + "\n")
+            output.flush()
             external_count += 1
+            if external_count % 100 == 0:
+                print(f"Dataset checkpoint: external={external_count}/{args.external_limit}", flush=True)
 
-    print(f"synthetic={synthetic_count}, external={external_count}, skipped={skipped}")
-    print(f"dataset: {args.out}")
+    print(f"synthetic={synthetic_count}, external={external_count}, skipped={skipped}", flush=True)
+    print(f"recoverable progress: {progress_file}", flush=True)
     if external_count < args.external_limit and not args.allow_shortfall:
         raise SystemExit(
             f"Only {external_count}/{args.external_limit} licensed external MIDI files were "
-            "usable. Add more reviewed manifest rows or pass --allow-shortfall."
+            "usable. Progress is preserved; add more reviewed manifest rows or pass --allow-shortfall."
         )
+    progress_file.replace(args.out)
+    print(f"Final dataset published: {args.out}", flush=True)
 
 
 if __name__ == "__main__":
