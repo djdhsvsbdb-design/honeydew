@@ -5,8 +5,10 @@ JSONL contains one song per line. Splits are made by song before event chunking
 so chunks from one song can never leak between train and validation.
 """
 import argparse
+import bisect
 import json
 import random
+from collections import OrderedDict
 import os
 import time
 from pathlib import Path
@@ -56,22 +58,73 @@ def chunk_song(tokens, block):
             for index, chunk in enumerate(chunks)]
 
 
-class SongChunks(Dataset):
-    def __init__(self, songs, block):
-        self.rows = []
-        for song in songs:
-            if not isinstance(song.get("events"), list) or not song["events"]:
+def index_songs(path, block):
+    """Index valid songs by byte offset; keep the large JSONL dataset off RAM."""
+    records = []
+    with Path(path).open("rb") as handle:
+        line_no = 0
+        while True:
+            offset = handle.tell()
+            line = handle.readline()
+            if not line:
+                break
+            line_no += 1
+            if not line.strip():
                 continue
-            self.rows.extend(torch.tensor(row, dtype=torch.long)
-                             for row in chunk_song(encode_song(song), block))
-        if not self.rows:
-            raise ValueError("Dataset split contains no usable songs")
+            try:
+                song = json.loads(line)
+                if not isinstance(song, dict):
+                    raise ValueError("each JSONL row must be an object")
+                if not isinstance(song.get("events"), list) or not song["events"]:
+                    continue
+                chunk_count = len(chunk_song(encode_song(song), block))
+                if chunk_count:
+                    records.append((offset, chunk_count))
+            except Exception as exc:
+                raise ValueError(f"{path}:{line_no}: {exc}") from exc
+    if len(records) < 2:
+        raise ValueError("Need at least two valid songs for train/validation split")
+    return records
+
+
+class SongChunks(Dataset):
+    """Lazy file-backed chunks; only a small LRU of songs is held in memory."""
+    def __init__(self, path, records, block, cache_songs=8):
+        self.path = str(path)
+        self.records = records
+        self.block = block
+        self.ends = []
+        total = 0
+        for _, count in records:
+            total += count
+            self.ends.append(total)
+        self.cache_songs = cache_songs
+        self.cache = OrderedDict()
 
     def __len__(self):
-        return len(self.rows)
+        return self.ends[-1] if self.ends else 0
 
     def __getitem__(self, index):
-        return self.rows[index]
+        if index < 0:
+            index += len(self)
+        if index < 0 or index >= len(self):
+            raise IndexError(index)
+        record_index = bisect.bisect_right(self.ends, index)
+        previous_end = self.ends[record_index - 1] if record_index else 0
+        offset, _ = self.records[record_index]
+        if record_index in self.cache:
+            chunks = self.cache.pop(record_index)
+            self.cache[record_index] = chunks
+        else:
+            with open(self.path, "rb") as handle:
+                handle.seek(offset)
+                song = json.loads(handle.readline())
+            chunks = [torch.tensor(row, dtype=torch.long)
+                      for row in chunk_song(encode_song(song), self.block)]
+            self.cache[record_index] = chunks
+            while len(self.cache) > self.cache_songs:
+                self.cache.popitem(last=False)
+        return chunks[index - previous_end]
 
 
 def collate(rows):
@@ -176,12 +229,14 @@ def main():
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    songs = read_songs(args.data)
-    random.Random(args.seed).shuffle(songs)
-    val_count = max(1, int(len(songs) * args.val_fraction))
-    train_songs, val_songs = songs[val_count:], songs[:val_count]
-    train_ds = SongChunks(train_songs, args.block)
-    val_ds = SongChunks(val_songs, args.block)
+    records = index_songs(args.data, args.block)
+    indices = list(range(len(records)))
+    random.Random(args.seed).shuffle(indices)
+    val_count = max(1, int(len(records) * args.val_fraction))
+    train_records = [records[i] for i in indices[val_count:]]
+    val_records = [records[i] for i in indices[:val_count]]
+    train_ds = SongChunks(args.data, train_records, args.block)
+    val_ds = SongChunks(args.data, val_records, args.block)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             shuffle=False, collate_fn=collate)
 
@@ -212,7 +267,7 @@ def main():
             torch.cuda.set_rng_state_all(checkpoint["cuda_rng_state"])
         print(f"Resuming at epoch {start_epoch + 1}, batch {resume_batch + 1}", flush=True)
 
-    print(f"songs={len(songs)} train={len(train_songs)} validation={len(val_songs)} "
+    print(f"songs={len(records)} train={len(train_records)} validation={len(val_records)} "
           f"train_chunks={len(train_ds)} val_chunks={len(val_ds)} device={device}", flush=True)
     global_step = int(checkpoint.get("global_step", 0)) if args.resume and out.exists() else 0
 
