@@ -23,7 +23,9 @@ def load_manifest(path):
             continue
         try:
             row = json.loads(line)
-        except json.JSONDecodeError as exc:
+            if not isinstance(row, dict):
+                raise ValueError("manifest row must be a JSON object")
+        except (json.JSONDecodeError, ValueError) as exc:
             raise ValueError(f"{path}:{line_no}: invalid JSON: {exc}") from exc
         required = ("path", "style", "license", "source_url", "source_name", "attribution")
         missing = [key for key in required if not row.get(key)]
@@ -79,6 +81,8 @@ def main():
         for line in progress_file.read_text(encoding="utf-8").splitlines():
             try:
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    continue
                 valid_lines.append(json.dumps(item, ensure_ascii=False, separators=(",", ":")))
                 if item.get("source_type") == "synthetic":
                     completed_synthetic.add(int(item.get("source_index", -1)))
