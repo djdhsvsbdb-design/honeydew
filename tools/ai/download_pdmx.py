@@ -29,12 +29,40 @@ def checksum(path):
 
 
 def download(url, path, expected_md5):
-    if not path.exists():
-        print(f"Downloading {path.name}...")
-        urllib.request.urlretrieve(url, path)
-    actual = checksum(path)
+    """Resume interrupted downloads into .part, then verify and atomically publish."""
+    part = path.with_name(path.name + ".part")
+    if path.exists():
+        actual = checksum(path)
+        if actual == expected_md5:
+            print(f"Already verified: {path.name}", flush=True)
+            return
+        path.unlink()
+    offset = part.stat().st_size if part.exists() else 0
+    request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
+    print(f"Downloading/resuming {path.name} from byte {offset}...", flush=True)
+    with urllib.request.urlopen(request) as response:
+        append = offset > 0 and getattr(response, "status", 200) == 206
+        if offset and not append:
+            offset = 0
+        mode = "ab" if append else "wb"
+        downloaded = offset
+        with part.open(mode) as target:
+            while True:
+                chunk = response.read(8 * 1024 * 1024)
+                if not chunk:
+                    break
+                target.write(chunk)
+                target.flush()
+                downloaded += len(chunk)
+                print(f"{path.name}: {downloaded:,} bytes downloaded", flush=True)
+    actual = checksum(part)
     if actual != expected_md5:
-        raise SystemExit(f"MD5 mismatch for {path.name}: expected {expected_md5}, got {actual}")
+        raise SystemExit(
+            f"MD5 mismatch for {path.name}: expected {expected_md5}, got {actual}. "
+            "The .part file is kept so the download can be inspected or restarted."
+        )
+    part.replace(path)
+    print(f"Verified: {path.name}", flush=True)
 
 
 def truth(value):
@@ -94,8 +122,17 @@ def main():
     midi_root = args.out_dir / "midi"
     midi_root.mkdir(parents=True, exist_ok=True)
     manifest = args.out_dir / "external-manifest.jsonl"
-    extracted = 0
-    with tarfile.open(archive, "r:gz") as tar, manifest.open("w", encoding="utf-8") as out:
+    completed = set()
+    if manifest.exists():
+        for line in manifest.read_text(encoding="utf-8").splitlines():
+            try:
+                completed.add(str(Path(json.loads(line)["path"]).resolve()))
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+    extracted = len(completed)
+    # Append one completed item at a time. Re-running scans the archive but skips
+    # files already recorded, so an interrupted extraction does not start over.
+    with tarfile.open(archive, "r:gz") as tar, manifest.open("a", encoding="utf-8") as out:
         for member in tar:
             if not member.isfile():
                 continue
@@ -105,16 +142,21 @@ def main():
             relative = PurePosixPath(name)
             destination = midi_root.joinpath(*relative.parts[1:]) if relative.parts[0] == "mid" else midi_root / relative.name
             destination.parent.mkdir(parents=True, exist_ok=True)
+            if str(destination.resolve()) in completed:
+                continue
             source = tar.extractfile(member)
             if source is None:
                 continue
-            with source, destination.open("wb") as target:
+            temporary = destination.with_name(destination.name + ".part")
+            with source, temporary.open("wb") as target:
                 while True:
                     chunk = source.read(1024 * 1024)
                     if not chunk:
                         break
                     target.write(chunk)
-            out.write(json.dumps({
+                target.flush()
+            temporary.replace(destination)
+            record = {
                 "path": str(destination.resolve()),
                 "style": selected[name],
                 "license": "CC0 / Public Domain",
@@ -122,12 +164,17 @@ def main():
                 "source_name": "PDMX public-domain/CC0 subset",
                 "source_url": SOURCE_URL,
                 "attribution": ATTRIBUTION,
-            }, ensure_ascii=False) + "\n")
+            }
+            out.write(json.dumps(record, ensure_ascii=False) + "\n")
+            out.flush()
+            completed.add(str(destination.resolve()))
             extracted += 1
+            if extracted % 100 == 0:
+                print(f"Extraction checkpoint: {extracted}/{args.limit}", flush=True)
             if extracted >= args.limit:
                 break
 
-    print(f"Verified PDMX archives. Imported {extracted} eligible MIDI files.")
+    print(f"Verified PDMX archives. Imported {extracted} eligible MIDI files.", flush=True)
     print(f"Manifest: {manifest}")
     if extracted < min(args.limit, len(selected)):
         print("Warning: fewer MIDI files were present in the archive than in the metadata selection.")
