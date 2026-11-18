@@ -1049,4 +1049,45 @@ mod tests {
                 < 0.0001
         );
     }
+    #[test]
+    fn sound_design_adds_configured_effect_chain_atomically() {
+        let mut song = Song::default();
+        let channel = song.insert_channel(1, ChannelKind::Instrument).unwrap();
+        let channel_id = song.channels[channel].id;
+        let ids = apply_sound_design(
+            &mut song,
+            ApplySoundDesign {
+                channel_id,
+                effects: vec![EffectDesign {
+                    name: "De-esser".into(),
+                    changes: vec![EffectParameterEdit {
+                        index: -2,
+                        value: 0.35,
+                    }],
+                }],
+            },
+        )
+        .unwrap();
+        assert_eq!(ids.len(), 1);
+        let module = song.channels[channel].rack.get(ids[0]).unwrap();
+        assert!((module.common.mix() - 0.35).abs() < 0.0001);
+
+        let before = song.clone();
+        let invalid = apply_sound_design(
+            &mut song,
+            ApplySoundDesign {
+                channel_id,
+                effects: vec![EffectDesign {
+                    name: "De-esser".into(),
+                    changes: vec![EffectParameterEdit {
+                        index: 999,
+                        value: 0.5,
+                    }],
+                }],
+            },
+        );
+        assert!(invalid.is_err());
+        assert_eq!(song, before);
+    }
+
 }
