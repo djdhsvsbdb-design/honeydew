@@ -43,11 +43,15 @@ this local stdio configuration does not automatically make it available there.
 
 ## Multi-track composition
 
-The `compose_song` MCP tool creates a fresh four-track arrangement (drums,
-bass, chords and lead) from a natural-language brief, sets tempo, applies
-role-aware built-in synth settings, and appends matching built-in effects. It
-does not replace existing clips. The offline note generator is deterministic
-for a given seed; it is a procedural composer, not a trained MIDI model.
+The desktop app also has a **Project → AI Compose** panel. It creates a fresh
+four-track arrangement (drums, bass, chords and lead), sets tempo, and appends
+matching built-in effects. It does not replace existing clips; the result is
+one undoable song edit. The offline note generator is deterministic for a given
+seed. It is a procedural composer, not a trained MIDI model.
+
+The `compose_song` MCP tool provides the same multi-track workflow to local
+MCP clients and can optionally use an OpenAI-compatible model to interpret the
+brief before generating notes.
 
 Optional AI brief interpretation uses an OpenAI-compatible chat-completions
 endpoint. Set `HONEYDEW_AI_API_KEY`, and optionally
