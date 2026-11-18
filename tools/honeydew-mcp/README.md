@@ -2,7 +2,9 @@
 
 This opt-in adapter lets a local MCP client edit the **open** Honeydew song. It
 can inspect channels, identify configured VST/CLAP instruments, list installed
-instruments, create note/drum clips, and adjust built-in synth parameters. An
+instruments, create note/drum clips, adjust built-in synth parameters, and build
+built-in effect chains. Existing VST/CLAP effect parameters can be edited when
+the plugin is loaded. An
 arrangement is one undoable edit. Honeydew's existing synth knob changes are
 not individually undoable, including those made through this adapter.
 External plugin presets are kept as-is; adding a new external plugin or choosing
@@ -70,8 +72,12 @@ indexes, names, current normalized values, defaults and display text.
 validating the entire request. Module parameter indexes are non-negative; common
 module controls use -1 (Post Gain), -2 (Mix) and -3 (Wet Pan). The audio engine receives the changes live and
 the song state is updated. These parameter edits are not individually undoable.
-VST/CLAP plugin effects are currently excluded because the bridge does not
-expose their private parameter state.
+Existing VST/CLAP plugin effects are listed using the parameter metadata saved
+in the song and can be adjusted through the same normalized parameter path when
+their plugin instance is loaded. Creating a new third-party plugin instance or
+loading its private preset is not supported by this bridge. Use
+`apply_sound_design` to append built-in effects to a channel; effect names
+must match the built-in catalogue.
 
 Only enable the bridge for trusted local clients. The token is a bearer secret:
 any local process that obtains it can edit the song. The bridge binds only to
