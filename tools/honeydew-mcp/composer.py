@@ -65,8 +65,17 @@ def _classify(prompt, tempo_override=None):
         with urllib.request.urlopen(req, timeout=20) as response:
             result = json.loads(response.read().decode())
         parsed = json.loads(result["choices"][0]["message"]["content"])
-        if parsed.get("genre") in ("house", "trance", "techno", "lofi", "ambient", "dnb"):
-            brief.update(parsed)
+        allowed = {
+            "genre": ("house", "trance", "techno", "lofi", "ambient", "dnb"),
+            "mood": ("uplifting", "driving", "relaxed", "atmospheric", "energetic"),
+            "mode": ("major", "minor"),
+            "density": ("low", "medium", "high"),
+        }
+        for key, choices in allowed.items():
+            if parsed.get(key) in choices:
+                brief[key] = parsed[key]
+        if isinstance(parsed.get("tempo"), (int, float)):
+            brief["tempo"] = max(60, min(190, int(parsed["tempo"])))
     if tempo_override is not None:
         brief["tempo"] = max(60, min(190, int(tempo_override)))
     return brief
@@ -198,6 +207,9 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
     song = honeydew_call("song")
     instruments = honeydew_call("instruments")
     effects = honeydew_call("effect_catalog")
+    song = song.get("result", song)
+    instruments = instruments.get("result", instruments)
+    effects = effects.get("result", effects)
     plan = build_plan(prompt, bars, seed, instruments, effects.get("effects", []), tempo_override)
     applied = honeydew_call("arrange", plan["arrangement"])
     if applied.get("error"):
