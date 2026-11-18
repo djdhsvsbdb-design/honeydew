@@ -104,7 +104,11 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
                 let mut fallback = Command::new("py");
                 fallback.arg("-3").arg(&server_path)
                     .current_dir(&dir).stdin(Stdio::piped()).stdout(Stdio::piped())
-                    .stderr(Stdio::null()).env("PYTHONUTF8", "1");
+                    .stderr(Stdio::null()).env("PYTHONUTF8", "1")
+                    .env_remove("HONEYDEW_AI_API_KEY")
+                    .env_remove("HONEYDEW_AI_PROVIDER")
+                    .env_remove("HONEYDEW_AI_BASE_URL")
+                    .env_remove("HONEYDEW_AI_MODEL");
                 if !api_key.trim().is_empty() { fallback.env("GROQ_API_KEY", api_key.trim()); }
                 fallback.spawn()
             }).map_err(|e| format!("Python 3 is required to run the local AI producer: {e}"))?
