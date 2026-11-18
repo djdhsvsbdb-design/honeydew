@@ -188,6 +188,37 @@ struct SetInstrumentParams {
     changes: Vec<ParameterEdit>,
 }
 
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetEffectParams { channel_id: i32, module_id: i32, changes: Vec<ParameterEdit> }
+
+/// Effect-only edits. Plugin effects are excluded until their plugin-specific state API is exposed.
+fn set_effect_params(song: &mut Song, request: SetEffectParams) -> Result<(usize, Vec<(usize, f32)>), String> {
+    if request.changes.is_empty() || request.changes.len() > 32 { return Err("provide 1–32 parameter changes".into()); }
+    let channel_index = song.channels.iter().position(|ch| ch.id == request.channel_id && ch.id != 0)
+        .ok_or_else(|| format!("channel {} is not in the open song", request.channel_id))?;
+    let channel = &mut song.channels[channel_index];
+    let module = channel.rack.get_mut(request.module_id)
+        .ok_or_else(|| format!("module {} is not on channel {}", request.module_id, request.channel_id))?;
+    let spec = crate::params::module_spec(module.type_id).ok_or("unknown module type")?;
+    if spec.role != crate::params::Role::Effect || module.type_id == crate::song::plugin::PLUGIN_EFFECT {
+        return Err("module is not a controllable built-in audio effect".into());
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut changes = Vec::with_capacity(request.changes.len());
+    for change in request.changes {
+        if !seen.insert(change.index) || module.param_spec(change.index).is_none()
+            || module.params.get(change.index).is_none() || !change.value.is_finite()
+            || !(0.0..=1.0).contains(&change.value) {
+            return Err(format!("invalid or duplicate parameter {}: use a unique index and a normalized value from 0 to 1", change.index));
+        }
+        changes.push((change.index, change.value as f32));
+    }
+    for &(index, value) in &changes { module.params[index] = value; module.init_follows(index as i32); }
+    Ok((channel_index, changes))
+}
+
 fn built_in_instrument(type_id: u16) -> Option<&'static str> {
     SynthKind::ALL
         .iter()
@@ -437,6 +468,22 @@ impl HoneydewApp {
                     .map(|p| json!({"uid": p.uid, "name": p.name, "format": p.format}))
                     .collect::<Vec<_>>()
             })),
+
+            Some("effects") => value.get("channel_id").and_then(Value::as_i64)
+                .and_then(|id| i32::try_from(id).ok()).ok_or_else(|| "channel_id must be an integer".to_owned())
+                .and_then(|id| self.control_effects(id)),
+            Some("set_effect_params") => serde_json::from_value::<SetEffectParams>(
+                value.get("edit").cloned().unwrap_or(Value::Null),
+            ).map_err(|e| e.to_string()).and_then(|edit| {
+                let module_id = edit.module_id;
+                let (channel, changes) = set_effect_params(&mut self.song, edit)?;
+                for &(index, value) in &changes {
+                    self.audio.send(AudioCommand::SetParam { channel, instance_id: module_id, index: index as i32, value });
+                }
+                self.song_edited(SongEdit::ChannelParam, tick);
+                Ok(json!({"channel_id": self.song.channels[channel].id, "module_id": module_id,
+                    "changed": changes.len(), "undoable": false}))
+            }),
             Some("instrument_params") => value
                 .get("channel_id")
                 .and_then(Value::as_i64)
@@ -505,6 +552,25 @@ impl HoneydewApp {
                 })).collect::<Vec<_>>()
             })).collect::<Vec<_>>()
         })
+    }
+
+
+    fn control_effects(&self, channel_id: i32) -> Result<Value, String> {
+        let channel = self.song.channels.iter().find(|ch| ch.id == channel_id && ch.id != 0)
+            .ok_or_else(|| format!("channel {channel_id} is not in the open song"))?;
+        let effects = channel.rack.modules.iter().filter_map(|module| {
+            let spec = crate::params::module_spec(module.type_id)?;
+            if spec.role != crate::params::Role::Effect || module.type_id == crate::song::plugin::PLUGIN_EFFECT { return None; }
+            Some(json!({"module_id": module.instance_id, "effect": spec.display_name,
+                "parameters": module.params.iter().enumerate().filter_map(|(index, &value)| {
+                    let p = module.param_spec(index)?;
+                    let kind = match p.kind { ParamKind::Continuous { .. } => "continuous",
+                        ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu", ParamKind::Toggle => "toggle" };
+                    Some(json!({"index": index, "name": p.name, "kind": kind, "options": p.kind.items(),
+                        "value": value, "default": p.default, "display": p.display_text(value)}))
+                }).collect::<Vec<_>>() }))
+        }).collect::<Vec<_>>();
+        Ok(json!({"channel_id": channel_id, "channel_name": channel.name, "effects": effects}))
     }
 
     fn control_instrument_params(&self, channel_id: i32) -> Result<Value, String> {
