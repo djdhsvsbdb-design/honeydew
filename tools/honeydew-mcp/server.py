@@ -70,6 +70,23 @@ TOOLS = [
                         }, "required": ["index", "value"], "additionalProperties": False}}
         }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
     },
+
+    {
+        "name": "list_effects",
+        "description": "List controllable built-in audio effects and their normalized parameters on an existing channel. Call get_song first. Plugin effects are not exposed yet.",
+        "inputSchema": {"type": "object", "properties": {"channel_id": {"type": "integer"}}, "required": ["channel_id"], "additionalProperties": False},
+    },
+    {
+        "name": "set_effect_params",
+        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in audio effect. Call list_effects first for module_id and parameter indexes. Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin effects are not supported yet.",
+        "inputSchema": {"type": "object", "properties": {
+            "channel_id": {"type": "integer"}, "module_id": {"type": "integer"},
+            "changes": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
+                "type": "object", "properties": {"index": {"type": "integer", "minimum": 0},
+                    "value": {"type": "number", "minimum": 0, "maximum": 1}},
+                "required": ["index", "value"], "additionalProperties": False}}
+        }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
+    },
     {
         "name": "apply_arrangement",
         "description": "Add or replace 1-16 note/drum clips and optionally set tempo in Honeydew's open song as one undoable edit. Use an existing channel ID to preserve its configured VST sound; use a new built-in synth or Drums for a new channel. Call get_song first. Bars are zero-based; note beats are quarter-note positions relative to each clip. For drums, key is the pad index returned by get_song. To revise a clip, pass replace_clip_id and the existing start_bar/bars. Does not change plugin presets or render audio.",
@@ -147,7 +164,7 @@ def handle(message):
         return {"protocolVersion": message.get("params", {}).get("protocolVersion", "2025-03-26"),
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "honeydew", "version": "0.1.0"},
-                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; these knob changes are not individually undoable. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
+                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; for audio effects, use list_effects before set_effect_params. These knob changes are not individually undoable. Plugin effects are not exposed. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
     if method == "ping":
         return {}
     if method == "tools/list":
@@ -158,13 +175,13 @@ def handle(message):
         args = params.get("arguments", {})
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
-                  "set_instrument_params": "set_instrument_params",
+                  "set_instrument_params": "set_instrument_params",\n                  "list_effects": "effects", "set_effect_params": "set_effect_params",
                   "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
         try:
-            response = honeydew(action, args if action in ("arrange", "set_instrument_params") else None,
-                                channel_id=args.get("channel_id") if action == "instrument_params" else None)
+            response = honeydew(action, args if action in ("arrange", "set_instrument_params", "set_effect_params") else None,
+                                channel_id=args.get("channel_id") if action in ("instrument_params", "effects") else None)
             error = response.get("error")
             return {"content": [{"type": "text", "text": json.dumps(response.get("result") if not error else {"error": error})}],
                     "isError": bool(error)}
