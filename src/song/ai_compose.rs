@@ -151,7 +151,7 @@ pub fn compose(song: &Song, prompt: &str, bars: u32, seed: u64) -> Result<Song, 
 
         let intervals: &[u8] = if major { &[0, 4, 7] } else { &[0, 3, 7] };
         for interval in intervals {
-            chord_notes.push(note(base, bpb * 0.92, (root + interval) as u8, 125));
+            chord_notes.push(note(base, bpb * 0.92, (root + *interval) as u8, 125));
         }
         if trance || ambient {
             chord_notes.push(note(base, bpb * 0.92, (root + 12) as u8, 95));
