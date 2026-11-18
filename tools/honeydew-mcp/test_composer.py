@@ -23,6 +23,16 @@ class ComposerTests(unittest.TestCase):
                 self.assertGreaterEqual(note["key"], 0)
                 self.assertLessEqual(note["key"], 127)
 
+    def test_non_four_four_meter_keeps_notes_inside_bars(self):
+        plan = composer.build_plan(
+            "house groove", 4, 5,
+            {"built_in": ["Drums", "Transistor Bass", "MiniSynth", "SuperSaw"]},
+            [{"name": "Reverb"}], beats_per_bar=3.0,
+        )
+        for track in plan["arrangement"]["tracks"]:
+            for note in track["notes"]:
+                self.assertLessEqual(note["beat"] + note["length_beats"], 12.0)
+
     def test_tempo_override_and_minimal_ambient(self):
         plan = composer.build_plan(
             "minimal ambient, dark", 2, 3,
