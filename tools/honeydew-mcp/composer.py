@@ -283,3 +283,169 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
         "warnings": warnings,
         "note": "Procedural composition generated from the brief. Configure HONEYDEW_AI_API_KEY to enable AI brief interpretation; this is not a trained MIDI model.",
     }
+
+
+# Groq/OpenAI-compatible tool-using producer. The model plans and calls the
+# same bounded local operations exposed by this MCP server; Honeydew validates
+# every edit at its authenticated loopback bridge.
+def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
+    api_key = (os.environ.get("HONEYDEW_AI_API_KEY")
+               or os.environ.get("GROQ_API_KEY"))
+    if not api_key:
+        raise RuntimeError("Set HONEYDEW_AI_API_KEY or GROQ_API_KEY in the MCP adapter environment.")
+    provider = os.environ.get("HONEYDEW_AI_PROVIDER", "").lower()
+    is_groq = provider == "groq" or bool(os.environ.get("GROQ_API_KEY") and
+                                         not os.environ.get("HONEYDEW_AI_API_KEY"))
+    base = os.environ.get(
+        "HONEYDEW_AI_BASE_URL",
+        os.environ.get("GROQ_BASE_URL",
+                       "https://api.groq.com/openai/v1" if is_groq
+                       else "https://api.openai.com/v1"),
+    ).rstrip("/")
+    endpoint = base if base.endswith("/chat/completions") else base + "/chat/completions"
+    model = os.environ.get(
+        "HONEYDEW_AI_MODEL",
+        os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile" if is_groq else "gpt-4o-mini"),
+    )
+
+    def tool(name, description, properties=None, required=None):
+        schema = {"type": "object", "properties": properties or {},
+                  "additionalProperties": False}
+        if required:
+            schema["required"] = required
+        return {"type": "function", "function": {
+            "name": name, "description": description, "parameters": schema}}
+
+    int_id = {"type": "integer"}
+    tools = [
+        tool("get_song", "Inspect the open song, channel IDs, clips, instruments and drum pad indices."),
+        tool("list_instruments", "List available built-in instruments and installed plugins."),
+        tool("list_effect_catalog", "List exact built-in effect names."),
+        tool("get_instrument_params", "Inspect parameters of a built-in synth on an existing channel.",
+             {"channel_id": int_id}, ["channel_id"]),
+        tool("list_effects", "Inspect effects and parameters on an existing channel.",
+             {"channel_id": int_id}, ["channel_id"]),
+        tool("apply_arrangement", "Create a multi-track arrangement. Existing content is preserved unless replace_clip_id is explicitly supplied. Use only instruments and drum pads discovered from Honeydew.",
+             {"tempo_bpm": {"type": "number"},
+              "tracks": {"type": "array", "minItems": 1, "maxItems": 16,
+                         "items": {"type": "object",
+                           "properties": {
+                             "target": {"type": "object"},
+                             "start_bar": {"type": "integer", "minimum": 0},
+                             "bars": {"type": "integer", "minimum": 1, "maximum": 16},
+                             "notes": {"type": "array", "maxItems": 512,
+                               "items": {"type": "object", "properties": {
+                                 "beat": {"type": "number", "minimum": 0},
+                                 "length_beats": {"type": "number", "exclusiveMinimum": 0},
+                                 "key": {"type": "integer", "minimum": 0, "maximum": 127},
+                                 "velocity": {"type": "integer", "minimum": 1, "maximum": 255}},
+                                 "required": ["beat", "length_beats", "key", "velocity"]}}
+                           }, "required": ["target", "start_bar", "bars", "notes"]}}},
+             ["tracks"]),
+        tool("set_instrument_params", "Adjust discovered normalized built-in synth parameters (0..1).",
+             {"channel_id": int_id, "module_id": int_id,
+              "changes": {"type": "array", "minItems": 1, "maxItems": 32,
+                          "items": {"type": "object", "properties": {
+                            "index": {"type": "integer", "minimum": 0},
+                            "value": {"type": "number", "minimum": 0, "maximum": 1}},
+                            "required": ["index", "value"]}}},
+             ["channel_id", "module_id", "changes"]),
+        tool("apply_sound_design", "Append a chain of exact built-in effects from the effect catalogue.",
+             {"channel_id": int_id, "effects": {"type": "array", "maxItems": 8,
+               "items": {"type": "object", "properties": {
+                 "name": {"type": "string"},
+                 "changes": {"type": "array", "maxItems": 32, "items": {
+                   "type": "object", "properties": {
+                     "index": {"type": "integer", "minimum": -3},
+                     "value": {"type": "number", "minimum": 0, "maximum": 1}},
+                   "required": ["index", "value"]}}},
+                 "required": ["name"]}}},
+             ["channel_id", "effects"]),
+        tool("set_effect_params", "Adjust parameters of an already-loaded effect using indexes discovered via list_effects.",
+             {"channel_id": int_id, "module_id": int_id,
+              "changes": {"type": "array", "minItems": 1, "maxItems": 32,
+                "items": {"type": "object", "properties": {
+                  "index": {"type": "integer", "minimum": -3},
+                  "value": {"type": "number", "minimum": 0, "maximum": 1}},
+                  "required": ["index", "value"]}}},
+             ["channel_id", "module_id", "changes"]),
+    ]
+
+    def execute(name, args):
+        if name == "get_song":
+            return honeydew_call("song")
+        if name == "list_instruments":
+            return honeydew_call("instruments")
+        if name == "list_effect_catalog":
+            return honeydew_call("effect_catalog")
+        if name == "get_instrument_params":
+            return honeydew_call("instrument_params", None, int(args["channel_id"]))
+        if name == "list_effects":
+            return honeydew_call("effects", None, int(args["channel_id"]))
+        action_map = {
+            "apply_arrangement": "arrange",
+            "set_instrument_params": "set_instrument_params",
+            "apply_sound_design": "apply_sound_design",
+            "set_effect_params": "set_effect_params",
+        }
+        action = action_map.get(name)
+        if not action:
+            raise ValueError("Unsupported producer tool: " + name)
+        return honeydew_call(action, args)
+
+    system = (
+        "You are the autonomous music producer inside Honeydew DAW. Use the provided "
+        "tools to inspect the actual open project before editing. Create a coherent, "
+        "musically intentional beat matching the user's brief, not a generic loop. "
+        "Inspect available instruments, drum pad indices and effect names; never guess "
+        "these. Create drums, bass, harmony and a memorable lead with variation across "
+        "bars, fills and rhythmic space. Set tempo appropriately. Tune only parameters "
+        "whose names and indexes you inspected. Add tasteful built-in effects. Never "
+        "replace existing clips; create new tracks unless the user explicitly asked to "
+        "edit a named existing track. Do not claim to have listened to or rendered audio: "
+        "you cannot audition the result. When finished, summarize what you created and "
+        "ask the user to listen. The requested length is " + str(max(1, min(16, int(bars)))) +
+        " bars. Seed: " + str(int(seed)) +
+        (". Use this tempo if feasible: " + str(int(tempo_override)) + " BPM."
+         if tempo_override is not None else "")
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": str(prompt)[:2000]},
+    ]
+    for _ in range(10):
+        payload = {"model": model, "temperature": 0.45, "messages": messages,
+                   "tools": tools, "tool_choice": "auto"}
+        req = urllib.request.Request(
+            endpoint, data=json.dumps(payload).encode(),
+            headers={"Authorization": "Bearer " + api_key,
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=45) as response:
+                data = json.loads(response.read().decode())
+        except Exception as exc:
+            raise RuntimeError("Groq/API request failed: " + str(exc)) from exc
+        choice = data.get("choices", [{}])[0].get("message", {})
+        calls = choice.get("tool_calls") or []
+        if not calls:
+            return {"provider": "Groq" if is_groq else "OpenAI-compatible API",
+                    "model": model, "result": choice.get("content", ""),
+                    "note": "Honeydew changes were made through MCP tools. Audio was not auditioned automatically."}
+        messages.append({"role": "assistant", "content": choice.get("content"),
+                         "tool_calls": calls})
+        for call in calls:
+            fn = call.get("function", {})
+            name = fn.get("name", "")
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+                result = execute(name, args)
+                if isinstance(result, dict) and result.get("error"):
+                    output = {"error": result["error"]}
+                else:
+                    output = result
+            except Exception as exc:
+                output = {"error": str(exc)}
+            messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
+                             "content": json.dumps(output, ensure_ascii=False)[:12000]})
+    raise RuntimeError("AI producer reached its 10-step tool-call limit; inspect the project and retry.")
