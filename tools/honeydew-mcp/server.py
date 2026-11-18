@@ -82,7 +82,7 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {
             "channel_id": {"type": "integer"}, "module_id": {"type": "integer"},
             "changes": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
-                "type": "object", "properties": {"index": {"type": "integer", "minimum": 0},
+                "type": "object", "properties": {"index": {"type": "integer", "minimum": -3},
                     "value": {"type": "number", "minimum": 0, "maximum": 1}},
                 "required": ["index", "value"], "additionalProperties": False}}
         }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
