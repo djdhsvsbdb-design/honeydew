@@ -209,7 +209,7 @@ struct SetEffectParams {
 fn set_effect_params(
     song: &mut Song,
     request: SetEffectParams,
-) -> Result<(usize, Vec<(usize, f32)>), String> {
+) -> Result<(usize, Vec<(i32, f32)>), String> {
     if request.changes.is_empty() || request.changes.len() > 32 {
         return Err("provide 1–32 parameter changes".into());
     }
@@ -236,7 +236,7 @@ fn set_effect_params(
             module.param_spec(change.index as usize).is_some()
                 && module.param(change.index).is_some()
         } else {
-            matches!(change.index, -1..=-3)
+            matches!(change.index, -3..=-1)
         };
         if !seen.insert(change.index)
             || !valid_index
