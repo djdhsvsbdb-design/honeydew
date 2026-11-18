@@ -1,7 +1,7 @@
 //! A small offline multi-track composer used by the AI Composer panel.
 //! It turns a text brief into a fresh, deterministic arrangement without overwriting existing clips.
 use super::{ChannelKind, Event, PPQ, Song, SynthKind};
-use crate::params::{self, Role};
+use crate::params::{self, ParamKind, Role};
 
 struct Rng(u64);
 
@@ -37,6 +37,37 @@ fn add_notes(song: &mut Song, channel: usize, notes: Vec<Event>) {
     if let Some(clip) = song.channels[channel].lanes[0].clips.last_mut() {
         clip.events = notes;
         clip.events.sort_by_key(Event::pos);
+    }
+}
+
+fn tune_instrument(channel: &mut super::Channel, role: &str) {
+    let Some(module) = channel.rack.modules.first_mut() else {
+        return;
+    };
+    let targets: &[(&str, f32)] = match role {
+        "bass" => &[("cutoff", 0.46), ("drive", 0.34), ("attack", 0.08), ("release", 0.24)],
+        "chords" => &[("attack", 0.28), ("release", 0.62), ("cutoff", 0.72)],
+        "lead" => &[("attack", 0.12), ("release", 0.48), ("cutoff", 0.68)],
+        _ => &[],
+    };
+    let changes: Vec<(i32, f32)> = (0..module.params.len())
+        .filter_map(|index| {
+            let spec = module.param_spec(index)?;
+            if !matches!(spec.kind, ParamKind::Continuous { .. }) {
+                return None;
+            }
+            let name = spec.name.to_lowercase();
+            targets
+                .iter()
+                .find(|(target, _)| name.contains(target))
+                .map(|(_, value)| (index as i32, *value))
+        })
+        .collect();
+    for (index, value) in changes {
+        if let Some(param) = module.param_mut(index) {
+            *param = value;
+            module.init_follows(index);
+        }
     }
 }
 
@@ -182,6 +213,9 @@ pub fn compose(song: &Song, prompt: &str, bars: u32, seed: u64) -> Result<Song, 
     add_notes(&mut result, bass, bass_notes);
     add_notes(&mut result, chords, chord_notes);
     add_notes(&mut result, lead, lead_notes);
+    tune_instrument(&mut result.channels[bass], "bass");
+    tune_instrument(&mut result.channels[chords], "chords");
+    tune_instrument(&mut result.channels[lead], "lead");
 
     add_effect(&mut result.channels[drums], "compress", 0.65);
     add_effect(&mut result.channels[bass], "compress", 0.45);
