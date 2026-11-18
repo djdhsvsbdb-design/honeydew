@@ -73,12 +73,12 @@ TOOLS = [
 
     {
         "name": "list_effects",
-        "description": "List controllable built-in audio effects and their normalized parameters on an existing channel. Call get_song first. Plugin effects are not exposed yet.",
+        "description": "List built-in and existing VST/CLAP audio effects and their normalized parameters on an existing channel. Call get_song first. Plugin parameters are available when the plugin is loaded and its parameter metadata is present.",
         "inputSchema": {"type": "object", "properties": {"channel_id": {"type": "integer"}}, "required": ["channel_id"], "additionalProperties": False},
     },
     {
         "name": "set_effect_params",
-        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in audio effect. Call list_effects first for module_id and parameter indexes. Common controls use indexes -1 (Post Gain), -2 (Mix), and -3 (Wet Pan). Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin effects are not supported yet.",
+        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in or VST/CLAP audio effect. Plugin parameter indexes follow the saved plugin parameter list. Call list_effects first for module_id and parameter indexes. Common controls use indexes -1 (Post Gain), -2 (Mix), and -3 (Wet Pan). Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin edits require the plugin instance to be loaded.",
         "inputSchema": {"type": "object", "properties": {
             "channel_id": {"type": "integer"}, "module_id": {"type": "integer"},
             "changes": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
@@ -180,7 +180,7 @@ def handle(message):
         return {"protocolVersion": message.get("params", {}).get("protocolVersion", "2025-03-26"),
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "honeydew", "version": "0.1.0"},
-                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; for audio effects, use list_effects before set_effect_params. These knob changes are not individually undoable. Plugin effects are not exposed. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
+                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; for audio effects, use list_effects before set_effect_params. These knob changes are not individually undoable. Plugin effect parameters can be changed when the plugin is loaded; creating new third-party plugin instances is not supported. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
     if method == "ping":
         return {}
     if method == "tools/list":
