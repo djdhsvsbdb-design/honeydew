@@ -67,7 +67,8 @@ To inspect or tune built-in audio effects, call `list_effects` with the
 channel ID. It returns each controllable built-in effect's module ID, parameter
 indexes, names, current normalized values, defaults and display text.
 `set_effect_params` changes 1–32 parameters on one effect (values 0–1), after
-validating the entire request. The audio engine receives the changes live and
+validating the entire request. Module parameter indexes are non-negative; common
+module controls use -1 (Post Gain), -2 (Mix) and -3 (Wet Pan). The audio engine receives the changes live and
 the song state is updated. These parameter edits are not individually undoable.
 VST/CLAP plugin effects are currently excluded because the bridge does not
 expose their private parameter state.
