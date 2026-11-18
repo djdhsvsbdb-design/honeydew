@@ -112,7 +112,7 @@ TOOLS = [
     },
     {
         "name": "compose_song",
-        "description": "Create a new multi-track arrangement from a natural-language brief. Generates drums, bass, chords and lead, sets tempo, and appends suitable built-in effects. It never overwrites existing clips. Offline procedural generation is always available; set HONEYDEW_AI_API_KEY to enable optional AI interpretation of the brief. This is not a trained MIDI-GPT model.",
+        "description": "Create a new multi-track arrangement. When HONEYDEW_AI_API_KEY or GROQ_API_KEY is configured, an AI producer uses Groq/OpenAI-compatible tool calling to inspect the open project and invoke Honeydew tools for arrangement, synth parameters and effects. Without an API key, falls back to the offline procedural composer. Existing clips are preserved; audio is not automatically auditioned.",
         "inputSchema": {"type": "object", "properties": {
             "prompt": {"type": "string", "minLength": 1, "maxLength": 2000},
             "bars": {"type": "integer", "minimum": 1, "maximum": 16},
@@ -197,7 +197,7 @@ def handle(message):
         return {"protocolVersion": message.get("params", {}).get("protocolVersion", "2025-03-26"),
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "honeydew", "version": "0.1.0"},
-                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; for audio effects, use list_effects before set_effect_params. These knob changes are not individually undoable. Plugin effect parameters can be changed when the plugin is loaded; creating new third-party plugin instances is not supported. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
+                "instructions": "Use get_song before edits. With GROQ_API_KEY or HONEYDEW_AI_API_KEY configured, compose_song runs an AI producer that can inspect the open song and call Honeydew arrangement, synth and effect tools. Without a key it uses the offline procedural composer. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For synth/effect edits inspect parameters first. These knob changes are not individually undoable. Creating new third-party plugin instances is not supported. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
     if method == "ping":
         return {}
     if method == "tools/list":
@@ -208,13 +208,22 @@ def handle(message):
         args = params.get("arguments", {})
         if name == "compose_song":
             try:
-                result = composer.compose(
-                    args.get("prompt", ""),
-                    args.get("bars", 8),
-                    args.get("seed", 7),
-                    args.get("tempo_bpm"),
-                    honeydew,
-                )
+                if (os.environ.get("HONEYDEW_AI_API_KEY") or os.environ.get("GROQ_API_KEY")):
+                    result = composer.ai_produce(
+                        args.get("prompt", ""),
+                        args.get("bars", 8),
+                        args.get("seed", 7),
+                        args.get("tempo_bpm"),
+                        honeydew,
+                    )
+                else:
+                    result = composer.compose(
+                        args.get("prompt", ""),
+                        args.get("bars", 8),
+                        args.get("seed", 7),
+                        args.get("tempo_bpm"),
+                        honeydew,
+                    )
                 return {"content": [{"type": "text", "text": json.dumps(result)}], "isError": False}
             except (OSError, ValueError, RuntimeError, KeyError) as exc:
                 return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
