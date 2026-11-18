@@ -68,6 +68,18 @@ class McpTests(unittest.TestCase):
 
 
 
+    def test_compose_song_uses_composer_and_returns_result(self):
+        expected = {"created_tracks": [{"channel_id": 4}]}
+        with patch.object(server.composer, "compose", return_value=expected) as compose:
+            result = server.handle({"method": "tools/call", "params": {
+                "name": "compose_song", "arguments": {
+                    "prompt": "warm house", "bars": 4, "seed": 11, "tempo_bpm": 120
+                }
+            }})
+        self.assertFalse(result["isError"])
+        self.assertEqual(json.loads(result["content"][0]["text"]), expected)
+        compose.assert_called_once_with("warm house", 4, 11, 120, server.honeydew)
+
     def test_apply_sound_design_forwards_effect_chain(self):
         request = {"channel_id": 12, "effects": [
             {"name": "Reverb", "changes": [{"index": -2, "value": 0.4}]}
