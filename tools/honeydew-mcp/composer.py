@@ -102,8 +102,12 @@ def _effect(name, mix):
     return {"name": name, "changes": [{"index": -2, "value": mix}]}
 
 
-def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override=None):
+def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override=None,
+               beats_per_bar=4.0):
     bars = max(1, min(16, int(bars)))
+    bpb = float(beats_per_bar)
+    if not 1.0 <= bpb <= 12.0:
+        bpb = 4.0
     rng = random.Random(int(seed))
     brief = _classify(prompt, tempo_override)
     available = instruments.get("built_in", [])
@@ -126,21 +130,23 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
     drum_notes = []
     if brief["genre"] != "ambient":
         for bar in range(bars):
-            base = bar * 4.0
-            for beat in range(4):
-                drum_notes.append({"beat": base + beat, "length_beats": 0.18,
-                                   "key": 0, "velocity": 190 if beat in (0, 2) else 145})
+            base = bar * bpb
+            beats = max(1, int(bpb))
+            for beat in range(beats):
+                drum_notes.append({"beat": base + beat * bpb / beats, "length_beats": 0.18,
+                                   "key": 0, "velocity": 190 if beat % 2 == 0 else 145})
             for beat in (1, 3):
-                drum_notes.append({"beat": base + beat, "length_beats": 0.18,
-                                   "key": 1, "velocity": 170})
+                if beat < bpb:
+                    drum_notes.append({"beat": base + beat * bpb / 4.0, "length_beats": 0.18,
+                                       "key": 1, "velocity": 170})
             hat_step = 0.5 if brief["genre"] != "lofi" else 1.0
             step = 0.0
-            while step < 4.0:
+            while step < bpb:
                 drum_notes.append({"beat": base + step, "length_beats": 0.12,
                                    "key": 3, "velocity": rng.randint(65, 105)})
                 step += hat_step
-            if brief["genre"] in ("house", "trance", "dnb"):
-                drum_notes.append({"beat": base + 3.5, "length_beats": 0.12,
+            if brief["genre"] in ("house", "trance", "dnb") and bpb >= 4:
+                drum_notes.append({"beat": base + bpb - 0.5, "length_beats": 0.12,
                                    "key": 4, "velocity": 85})
 
     bass_notes, chord_notes, lead_notes = [], [], []
@@ -151,7 +157,7 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
         if brief["genre"] in ("trance", "ambient"):
             chord_intervals.append(12)
         for interval in chord_intervals:
-            chord_notes.append({"beat": bar * 4.0, "length_beats": 3.8,
+            chord_notes.append({"beat": bar * bpb, "length_beats": bpb * 0.95,
                                 "key": min(96, root + interval),
                                 "velocity": 105 if interval else 125})
         if brief["genre"] == "ambient":
@@ -159,7 +165,7 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
                                "key": root - 12, "velocity": 105})
         else:
             for step in range(density):
-                beat = step * (4.0 / density)
+                beat = step * (bpb / density)
                 key = root - 12 if step % 4 else root - 12 + 7
                 bass_notes.append({"beat": bar * 4.0 + beat,
                                    "length_beats": 0.42 if density >= 6 else 0.8,
@@ -168,10 +174,10 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
             for step in range(4 if brief["density"] == "low" else 8):
                 degree = rng.choice([1, 2, 4, 5, 6])
                 octave = 12 if step % 3 == 0 else 0
-                beat = step * (0.5 if step < 4 else 0.5)
+                beat = step * (bpb / (4 if brief["density"] == "low" else 8))
                 key = 60 + scale[degree] + octave
-                lead_notes.append({"beat": bar * 4.0 + beat,
-                                   "length_beats": 0.28 if step % 2 else 0.45,
+                lead_notes.append({"beat": bar * bpb + beat,
+                                   "length_beats": (bpb / (4 if brief["density"] == "low" else 8)) * 0.7,
                                    "key": key, "velocity": rng.randint(80, 125)})
 
     tracks = [
@@ -230,7 +236,10 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
     song = song.get("result", song)
     instruments = instruments.get("result", instruments)
     effects = effects.get("result", effects)
-    plan = build_plan(prompt, bars, seed, instruments, effects.get("effects", []), tempo_override)
+    plan = build_plan(
+        prompt, bars, seed, instruments, effects.get("effects", []), tempo_override,
+        song.get("beats_per_bar", 4.0),
+    )
     applied = honeydew_call("arrange", plan["arrangement"])
     if applied.get("error"):
         raise RuntimeError(applied["error"])
