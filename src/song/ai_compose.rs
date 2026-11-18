@@ -59,15 +59,15 @@ fn tune_instrument(channel: &mut super::Channel, role: &str) {
             let name = spec.name.to_lowercase();
             targets
                 .iter()
-                .find(|(target, _)| name.contains(target))
+                .find(|(target, _)| name.contains(*target))
                 .map(|(_, value)| (index as i32, *value))
         })
         .collect();
     for (index, value) in changes {
         if let Some(param) = module.param_mut(index) {
             *param = value;
-            module.init_follows(index);
         }
+        module.init_follows(index);
     }
 }
 
