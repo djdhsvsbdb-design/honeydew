@@ -188,6 +188,164 @@ struct SetInstrumentParams {
     changes: Vec<ParameterEdit>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EffectParameterEdit {
+    /// Module params are non-negative; common params are -1 (Post Gain), -2 (Mix), -3 (Wet Pan).
+    index: i32,
+    value: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetEffectParams {
+    channel_id: i32,
+    module_id: i32,
+    changes: Vec<EffectParameterEdit>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EffectDesign {
+    name: String,
+    #[serde(default)]
+    changes: Vec<EffectParameterEdit>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApplySoundDesign {
+    channel_id: i32,
+    effects: Vec<EffectDesign>,
+}
+
+fn effect_type_id(name: &str) -> Option<u16> {
+    crate::params::modules()
+        .chain(crate::params::LEMON_MODULES.iter())
+        .chain([
+            &crate::params::DYNAMIC_EQ,
+            &crate::params::MODULATOR,
+            &crate::params::DE_ESSER,
+            &crate::params::DENOISE,
+            &crate::params::HALF_TIME,
+        ])
+        .find(|spec| {
+            spec.role == crate::params::Role::Effect
+                && spec.display_name.eq_ignore_ascii_case(name)
+        })
+        .map(|spec| spec.id)
+}
+
+fn apply_sound_design(song: &mut Song, request: ApplySoundDesign) -> Result<Vec<i32>, String> {
+    if request.effects.len() > 8 {
+        return Err("at most 8 effects per channel".into());
+    }
+    let channel_index = song
+        .channels
+        .iter()
+        .position(|ch| ch.id == request.channel_id && ch.id != 0)
+        .ok_or_else(|| format!("channel {} is not in the open song", request.channel_id))?;
+    let mut additions = Vec::with_capacity(request.effects.len());
+    for effect in request.effects {
+        let type_id = effect_type_id(&effect.name)
+            .ok_or_else(|| format!("unknown built-in effect: {}", effect.name))?;
+        if effect.changes.len() > 32 {
+            return Err("at most 32 parameter changes per effect".into());
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut changes = Vec::with_capacity(effect.changes.len());
+        let module = crate::song::ModuleInstance::new(type_id, 0);
+        for change in effect.changes {
+            let valid_index = if change.index >= 0 {
+                module.param_spec(change.index as usize).is_some()
+                    && module.param(change.index).is_some()
+            } else {
+                matches!(change.index, -3..=-1)
+            };
+            if !seen.insert(change.index)
+                || !valid_index
+                || !change.value.is_finite()
+                || !(0.0..=1.0).contains(&change.value)
+            {
+                return Err(format!("invalid parameter {} for effect {}", change.index, effect.name));
+            }
+            changes.push((change.index, change.value as f32));
+        }
+        additions.push((type_id, changes));
+    }
+    let channel = &mut song.channels[channel_index];
+    let mut ids = Vec::with_capacity(additions.len());
+    for (type_id, changes) in additions {
+        let id = channel.rack.add(type_id);
+        let module = channel.rack.get_mut(id).expect("new effect module exists");
+        for (index, value) in changes {
+            *module.param_mut(index).expect("validated effect parameter") = value;
+            if index >= 0 {
+                module.init_follows(index);
+            }
+        }
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+/// Effect-only edits. Plugin parameters use the same normalized module parameter path as built-in effects.
+fn set_effect_params(
+    song: &mut Song,
+    request: SetEffectParams,
+) -> Result<(usize, Vec<(i32, f32)>), String> {
+    if request.changes.is_empty() || request.changes.len() > 32 {
+        return Err("provide 1–32 parameter changes".into());
+    }
+    let channel_index = song
+        .channels
+        .iter()
+        .position(|ch| ch.id == request.channel_id && ch.id != 0)
+        .ok_or_else(|| format!("channel {} is not in the open song", request.channel_id))?;
+    let channel = &mut song.channels[channel_index];
+    let module = channel
+        .rack
+        .get_mut(request.module_id)
+        .ok_or_else(|| {
+            format!(
+                "module {} is not on channel {}",
+                request.module_id, request.channel_id
+            )
+        })?;
+    let spec = crate::params::module_spec(module.type_id).ok_or("unknown module type")?;
+    if spec.role != crate::params::Role::Effect {
+        return Err("module is not an audio effect".into());
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut changes = Vec::with_capacity(request.changes.len());
+    for change in request.changes {
+        let valid_index = if change.index >= 0 {
+            module.param_spec(change.index as usize).is_some()
+                && module.param(change.index).is_some()
+        } else {
+            matches!(change.index, -3..=-1)
+        };
+        if !seen.insert(change.index)
+            || !valid_index
+            || !change.value.is_finite()
+            || !(0.0..=1.0).contains(&change.value)
+        {
+            return Err(format!(
+                "invalid or duplicate parameter {}: use a valid module index or common index -1..-3, and a normalized value from 0 to 1",
+                change.index
+            ));
+        }
+        changes.push((change.index, change.value as f32));
+    }
+    for &(index, value) in &changes {
+        *module.param_mut(index).expect("validated effect parameter") = value;
+        if index >= 0 {
+            module.init_follows(index);
+        }
+    }
+    Ok((channel_index, changes))
+}
+
 fn built_in_instrument(type_id: u16) -> Option<&'static str> {
     SynthKind::ALL
         .iter()
@@ -437,6 +595,81 @@ impl HoneydewApp {
                     .map(|p| json!({"uid": p.uid, "name": p.name, "format": p.format}))
                     .collect::<Vec<_>>()
             })),
+
+            Some("effect_catalog") => Ok(json!({
+                "effects": crate::params::modules()
+                    .chain(crate::params::LEMON_MODULES.iter())
+                    .chain([
+                        &crate::params::DYNAMIC_EQ,
+                        &crate::params::MODULATOR,
+                        &crate::params::DE_ESSER,
+                        &crate::params::DENOISE,
+                        &crate::params::HALF_TIME,
+                    ])
+                    .filter(|spec| spec.role == crate::params::Role::Effect)
+                    .map(|spec| json!({
+                        "name": spec.display_name,
+                        "type_id": spec.id,
+                        "parameters": spec.params.iter().enumerate().map(|(index, param)| json!({
+                            "index": index,
+                            "name": param.name,
+                            "kind": match param.kind {
+                                ParamKind::Continuous { .. } => "continuous",
+                                ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
+                                ParamKind::Toggle => "toggle",
+                            },
+                            "options": param.kind.items(),
+                            "default": param.default,
+                            "display": param.display_text(param.default),
+                        })).collect::<Vec<_>>()
+                    }))
+                    .collect::<Vec<_>>()
+            })),
+            Some("effects") => value
+                .get("channel_id")
+                .and_then(Value::as_i64)
+                .and_then(|id| i32::try_from(id).ok())
+                .ok_or_else(|| "channel_id must be an integer".to_owned())
+                .and_then(|id| self.control_effects(id)),
+            Some("apply_sound_design") => serde_json::from_value::<ApplySoundDesign>(
+                value.get("edit").cloned().unwrap_or(Value::Null),
+            )
+            .map_err(|e| e.to_string())
+            .and_then(|edit| {
+                let channel_id = edit.channel_id;
+                let ids = apply_sound_design(&mut self.song, edit)?;
+                if !ids.is_empty() {
+                    self.song_edited(SongEdit::Final, tick);
+                }
+                Ok(json!({
+                    "channel_id": channel_id,
+                    "effect_module_ids": ids,
+                    "undoable": !ids.is_empty()
+                }))
+            }),
+            Some("set_effect_params") => serde_json::from_value::<SetEffectParams>(
+                value.get("edit").cloned().unwrap_or(Value::Null),
+            )
+            .map_err(|e| e.to_string())
+            .and_then(|edit| {
+                let module_id = edit.module_id;
+                let (channel, changes) = set_effect_params(&mut self.song, edit)?;
+                for &(index, value) in &changes {
+                    self.audio.send(AudioCommand::SetParam {
+                        channel,
+                        instance_id: module_id,
+                        index,
+                        value,
+                    });
+                }
+                self.song_edited(SongEdit::ChannelParam, tick);
+                Ok(json!({
+                    "channel_id": self.song.channels[channel].id,
+                    "module_id": module_id,
+                    "changed": changes.len(),
+                    "undoable": false
+                }))
+            }),
             Some("instrument_params") => value
                 .get("channel_id")
                 .and_then(Value::as_i64)
@@ -505,6 +738,70 @@ impl HoneydewApp {
                 })).collect::<Vec<_>>()
             })).collect::<Vec<_>>()
         })
+    }
+
+    fn control_effects(&self, channel_id: i32) -> Result<Value, String> {
+        let channel = self
+            .song
+            .channels
+            .iter()
+            .find(|ch| ch.id == channel_id && ch.id != 0)
+            .ok_or_else(|| format!("channel {channel_id} is not in the open song"))?;
+        let effects = channel
+            .rack
+            .modules
+            .iter()
+            .filter_map(|module| {
+                let spec = crate::params::module_spec(module.type_id)?;
+                if spec.role != crate::params::Role::Effect {
+                    return None;
+                }
+                let mut parameters = module
+                    .params
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &value)| {
+                        let param = module.param_spec(index)?;
+                        let kind = match param.kind {
+                            ParamKind::Continuous { .. } => "continuous",
+                            ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
+                            ParamKind::Toggle => "toggle",
+                        };
+                        Some(json!({
+                            "index": index,
+                            "name": param.name,
+                            "kind": kind,
+                            "options": param.kind.items(),
+                            "value": value,
+                            "default": param.default,
+                            "display": param.display_text(value),
+                        }))
+                    })
+                    .collect::<Vec<_>>();
+                for (common_index, param) in crate::params::COMMON_PARAMS.iter().enumerate() {
+                    let value = module.common.0[common_index];
+                    parameters.push(json!({
+                        "index": -1 - common_index as i32,
+                        "name": param.name,
+                        "kind": "continuous",
+                        "options": [],
+                        "value": value,
+                        "default": param.default,
+                        "display": param.display_text(value),
+                    }));
+                }
+                Some(json!({
+                    "module_id": module.instance_id,
+                    "effect": module.title(),
+                    "parameters": parameters
+                }))
+            })
+            .collect::<Vec<_>>();
+        Ok(json!({
+            "channel_id": channel_id,
+            "channel_name": channel.name,
+            "effects": effects
+        }))
     }
 
     fn control_instrument_params(&self, channel_id: i32) -> Result<Value, String> {
@@ -693,4 +990,138 @@ mod tests {
         .unwrap();
         assert!(set_instrument_params(&mut song, request).is_err());
     }
+
+    #[test]
+    fn plugin_effect_parameters_are_listed_and_updated() {
+        let mut app = HoneydewApp::default();
+        let channel = app
+            .song
+            .insert_channel(1, ChannelKind::Instrument)
+            .unwrap();
+        let channel_id = app.song.channels[channel].id;
+        let module_id = app.song.channels[channel]
+            .rack
+            .add(crate::song::plugin::PLUGIN_EFFECT);
+        let module = app.song.channels[channel]
+            .rack
+            .get_mut(module_id)
+            .unwrap();
+        module.file.plugin = Some(crate::song::plugin::PluginRef {
+            format: "clap".into(),
+            id: "org.example.test-effect".into(),
+            name: "Test Effect".into(),
+            vendor: "Honeydew Tests".into(),
+            params: vec![crate::song::plugin::PluginParam {
+                id: 42,
+                name: "Drive".into(),
+                default: 0.25,
+            }],
+            ..Default::default()
+        });
+        module.params.push(0.25);
+
+        let listed = app.control_call(
+            json!({"action": "effects", "channel_id": channel_id}),
+            0,
+        );
+        let effects = &listed["result"]["effects"];
+        assert!(effects.iter().any(|effect| effect["effect"] == "Test Effect"));
+        let params = &effects[0]["parameters"];
+        assert!(params.iter().any(|p| p["index"] == 1 && p["name"] == "Drive"));
+
+        let changed = app.control_call(
+            json!({"action": "set_effect_params", "edit": {
+                "channel_id": channel_id,
+                "module_id": module_id,
+                "changes": [{"index": 1, "value": 0.75}]
+            }}),
+            0,
+        );
+        assert_eq!(changed["result"]["changed"], 1, "{changed}");
+        assert!((app.song.channels[channel].rack.get(module_id).unwrap().params[1] - 0.75).abs() < 0.0001);
+    }
+
+    #[test]
+    fn effect_common_controls_are_listed_and_updated() {
+        let mut app = HoneydewApp::default();
+        let channel = app
+            .song
+            .insert_channel(1, ChannelKind::Instrument)
+            .unwrap();
+        let channel_id = app.song.channels[channel].id;
+        let module_id = app.song.channels[channel]
+            .rack
+            .add(crate::params::DE_ESSER.id);
+        let listed = app.control_call(
+            json!({"action": "effects", "channel_id": channel_id}),
+            0,
+        );
+        let params = &listed["result"]["effects"][0]["parameters"];
+        assert!(
+            params
+                .iter()
+                .any(|p| p["index"] == -2 && p["name"] == "Mix")
+        );
+        let changed = app.control_call(
+            json!({"action": "set_effect_params", "edit": {
+                "channel_id": channel_id,
+                "module_id": module_id,
+                "changes": [{"index": -2, "value": 0.4}]
+            }}),
+            0,
+        );
+        assert_eq!(changed["result"]["changed"], 1, "{changed}");
+        assert!(
+            (app.song.channels[channel]
+                .rack
+                .get(module_id)
+                .unwrap()
+                .common
+                .mix()
+                - 0.4)
+                .abs()
+                < 0.0001
+        );
+    }
+    #[test]
+    fn sound_design_adds_configured_effect_chain_atomically() {
+        let mut song = Song::default();
+        let channel = song.insert_channel(1, ChannelKind::Instrument).unwrap();
+        let channel_id = song.channels[channel].id;
+        let ids = apply_sound_design(
+            &mut song,
+            ApplySoundDesign {
+                channel_id,
+                effects: vec![EffectDesign {
+                    name: "De-esser".into(),
+                    changes: vec![EffectParameterEdit {
+                        index: -2,
+                        value: 0.35,
+                    }],
+                }],
+            },
+        )
+        .unwrap();
+        assert_eq!(ids.len(), 1);
+        let module = song.channels[channel].rack.get(ids[0]).unwrap();
+        assert!((module.common.mix() - 0.35).abs() < 0.0001);
+
+        let before = song.clone();
+        let invalid = apply_sound_design(
+            &mut song,
+            ApplySoundDesign {
+                channel_id,
+                effects: vec![EffectDesign {
+                    name: "De-esser".into(),
+                    changes: vec![EffectParameterEdit {
+                        index: 999,
+                        value: 0.5,
+                    }],
+                }],
+            },
+        );
+        assert!(invalid.is_err());
+        assert_eq!(song, before);
+    }
+
 }

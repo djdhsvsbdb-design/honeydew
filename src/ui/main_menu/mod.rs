@@ -159,6 +159,8 @@ pub enum MainMenuAction {
     ConfirmDelete(String),
     /// PROJECT `Quick Render`: render the last audio format with the current render options, no dialog.
     QuickRender,
+    /// PROJECT: open the built-in multi-track composer.
+    AiCompose,
     /// SETTINGS `Open folder` or `Open user folder`: show the folder this file is in (the Original Content folder's
     /// README, the user folder's `My Songs`) in the system's file manager.
     Reveal(std::path::PathBuf),

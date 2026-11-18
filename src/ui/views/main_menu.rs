@@ -313,6 +313,7 @@ pub fn show(
             let format = quick_render_format(app.settings.last_audio_format);
             app.files.quick_render(app.song, format);
         }
+        MainMenuAction::AiCompose => return Some(Nav::Open(Overlay::AiComposer)),
         MainMenuAction::Import => replace(app, Replace::Pick),
         MainMenuAction::ImportFolder => app.files.pick_folder(),
         MainMenuAction::Open(path) => replace(app, Replace::Open(path)),

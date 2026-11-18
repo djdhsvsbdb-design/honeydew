@@ -27,6 +27,7 @@ use crate::ui::piano_roll::PianoRoll;
 use crate::ui::popup::{self, PopupItem};
 use crate::ui::preview::ClipKey;
 
+pub mod ai_composer;
 pub mod audio_editor;
 pub mod automation_editor;
 pub mod channel_settings;
@@ -90,6 +91,8 @@ pub use crate::ui::main_menu::Tab as MenuTab;
 pub enum Overlay {
     /// The main menu (logo corner), on a tab.
     MainMenu(MenuTab),
+    /// The built-in multi-track composer.
+    AiComposer,
     /// The Save dialog, with its `File Name` field.
     SaveDialog { name: String },
     /// The keyboard settings panel (transport icon 48).
@@ -541,6 +544,7 @@ impl AppCtx<'_> {
 /// What every view and overlay keeps between frames.
 #[derive(Default)]
 pub struct Slots {
+    pub ai_composer: ai_composer::State,
     pub piano_roll: piano_roll::State,
     pub drum_editor: drum_editor::State,
     pub mixer: mixer::State,
@@ -728,6 +732,9 @@ impl Slots {
                 app,
                 tab,
             ),
+            Overlay::AiComposer => {
+                top.then(|| ai_composer::show(&mut self.ai_composer, ui, app))?
+            }
             // Modal in its own layers: hidden while a message shows over it.
             Overlay::SaveDialog { name } => {
                 top.then(|| save_dialog::show(&mut self.export, ui, app, name))?

@@ -11,6 +11,8 @@ import os
 import socket
 import sys
 
+import composer
+
 
 def token_path():
     override = os.environ.get("HONEYDEW_TOKEN_FILE")
@@ -69,6 +71,54 @@ TOOLS = [
                             "value": {"type": "number", "minimum": 0, "maximum": 1}
                         }, "required": ["index", "value"], "additionalProperties": False}}
         }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
+    },
+
+    {
+        "name": "list_effect_catalog",
+        "description": "List exact names and normalized parameter metadata for all built-in audio effects. Use this before apply_sound_design.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "list_effects",
+        "description": "List built-in and existing VST/CLAP audio effects and their normalized parameters on an existing channel. Call get_song first. Plugin parameters are available when the plugin is loaded and its parameter metadata is present.",
+        "inputSchema": {"type": "object", "properties": {"channel_id": {"type": "integer"}}, "required": ["channel_id"], "additionalProperties": False},
+    },
+    {
+        "name": "set_effect_params",
+        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in or VST/CLAP audio effect. Plugin parameter indexes follow the saved plugin parameter list. Call list_effects first for module_id and parameter indexes. Common controls use indexes -1 (Post Gain), -2 (Mix), and -3 (Wet Pan). Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin edits require the plugin instance to be loaded.",
+        "inputSchema": {"type": "object", "properties": {
+            "channel_id": {"type": "integer"}, "module_id": {"type": "integer"},
+            "changes": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
+                "type": "object", "properties": {"index": {"type": "integer", "minimum": -3},
+                    "value": {"type": "number", "minimum": 0, "maximum": 1}},
+                "required": ["index", "value"], "additionalProperties": False}}
+        }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
+    },
+    {
+        "name": "apply_sound_design",
+        "description": "Append a validated chain of built-in audio effects to an existing channel. Use exact effect names from the built-in Honeydew effect catalogue. Each effect may set up to 32 normalized parameter values; negative indexes -1, -2 and -3 are Post Gain, Mix and Wet Pan. This rebuilds the channel's rack as one undoable song edit. Existing VST/CLAP effects can be tuned with set_effect_params but cannot be created by this tool.",
+        "inputSchema": {"type": "object", "properties": {
+            "channel_id": {"type": "integer"},
+            "effects": {"type": "array", "maxItems": 8, "items": {
+                "type": "object", "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "changes": {"type": "array", "maxItems": 32, "items": {
+                        "type": "object", "properties": {
+                            "index": {"type": "integer", "minimum": -3},
+                            "value": {"type": "number", "minimum": 0, "maximum": 1}
+                        }, "required": ["index", "value"], "additionalProperties": False}}
+                }, "required": ["name"], "additionalProperties": False}}
+        }, "required": ["channel_id", "effects"], "additionalProperties": False},
+    },
+    {
+        "name": "compose_song",
+        "description": "Create a new multi-track arrangement. When HONEYDEW_AI_API_KEY or GROQ_API_KEY is configured, an AI producer uses Groq/OpenAI-compatible tool calling to inspect the open project and invoke Honeydew tools for arrangement, synth parameters and effects. Without an API key, falls back to the offline procedural composer. Existing clips are preserved; audio is not automatically auditioned.",
+        "inputSchema": {"type": "object", "properties": {
+            "prompt": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "bars": {"type": "integer", "minimum": 1, "maximum": 16},
+            "seed": {"type": "integer"},
+            "tempo_bpm": {"type": "integer", "minimum": 60, "maximum": 190}
+        }, "required": ["prompt"], "additionalProperties": False},
     },
     {
         "name": "apply_arrangement",
@@ -147,7 +197,7 @@ def handle(message):
         return {"protocolVersion": message.get("params", {}).get("protocolVersion", "2025-03-26"),
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "honeydew", "version": "0.1.0"},
-                "instructions": "Use get_song before edits. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For built-in synth sound design, use get_instrument_params before set_instrument_params; these knob changes are not individually undoable. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
+                "instructions": "Use get_song before edits. With GROQ_API_KEY or HONEYDEW_AI_API_KEY configured, compose_song runs an AI producer that can inspect the open song and call Honeydew arrangement, synth and effect tools. Without a key it uses the offline procedural composer. Reuse existing configured VST channels by ID. apply_arrangement changes the open song and is one undo step. For synth/effect edits inspect parameters first. These knob changes are not individually undoable. Creating new third-party plugin instances is not supported. Do not claim to have auditioned the result; ask the user to listen and give feedback."}
     if method == "ping":
         return {}
     if method == "tools/list":
@@ -156,15 +206,45 @@ def handle(message):
         params = message.get("params", {})
         name = params.get("name")
         args = params.get("arguments", {})
+        if name == "compose_song":
+            try:
+                if (os.environ.get("HONEYDEW_AI_API_KEY") or os.environ.get("GROQ_API_KEY")):
+                    result = composer.ai_produce(
+                        args.get("prompt", ""),
+                        args.get("bars", 8),
+                        args.get("seed", 7),
+                        args.get("tempo_bpm"),
+                        honeydew,
+                    )
+                else:
+                    result = composer.compose(
+                        args.get("prompt", ""),
+                        args.get("bars", 8),
+                        args.get("seed", 7),
+                        args.get("tempo_bpm"),
+                        honeydew,
+                    )
+                return {"content": [{"type": "text", "text": json.dumps(result)}], "isError": False}
+            except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
                   "set_instrument_params": "set_instrument_params",
-                  "apply_arrangement": "arrange"}.get(name)
+                  "list_effect_catalog": "effect_catalog", "list_effects": "effects",
+                  "set_effect_params": "set_effect_params",
+                  "apply_sound_design": "apply_sound_design", "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
         try:
-            response = honeydew(action, args if action in ("arrange", "set_instrument_params") else None,
-                                channel_id=args.get("channel_id") if action == "instrument_params" else None)
+            response = honeydew(
+                action,
+                args if action in (
+                    "arrange", "set_instrument_params", "set_effect_params",
+                    "apply_sound_design",
+                ) else None,
+                channel_id=args.get("channel_id")
+                if action in ("instrument_params", "effects") else None,
+            )
             error = response.get("error")
             return {"content": [{"type": "text", "text": json.dumps(response.get("result") if not error else {"error": error})}],
                     "isError": bool(error)}
