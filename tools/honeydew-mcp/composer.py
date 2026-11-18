@@ -245,6 +245,7 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
         raise RuntimeError(applied["error"])
     created = applied.get("result", {}).get("created", [])
     warnings = []
+    effects_added = 0
     roles = ("drums", "bass", "chords", "lead")
     for index, channel in enumerate(created):
         role = roles[index] if index < len(roles) else "lead"
@@ -271,10 +272,14 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
             })
             if result.get("error"):
                 warnings.append(channel["channel_name"] + ": " + result["error"])
+            else:
+                effects_added += len(
+                    result.get("result", {}).get("effect_module_ids", [])
+                )
     return {
         "brief": plan["brief"],
         "created_tracks": created,
-        "effects_added": sum(len(x) for x in plan["sound_design"]),
+        "effects_added": effects_added,
         "warnings": warnings,
         "note": "Procedural composition generated from the brief. Configure HONEYDEW_AI_API_KEY to enable AI brief interpretation; this is not a trained MIDI model.",
     }
