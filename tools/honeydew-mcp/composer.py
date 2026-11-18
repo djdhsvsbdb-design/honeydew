@@ -203,6 +203,26 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
     }
 
 
+def _instrument_changes(parameters, role):
+    targets = {
+        "bass": {"cutoff": 0.46, "drive": 0.34, "attack": 0.08, "release": 0.24},
+        "chords": {"attack": 0.28, "release": 0.62, "cutoff": 0.72},
+        "lead": {"attack": 0.12, "release": 0.48, "cutoff": 0.68},
+    }.get(role, {})
+    changes = []
+    used = set()
+    for param in parameters:
+        name = str(param.get("name", "")).lower()
+        if param.get("kind") != "continuous" or param.get("index", 0) == 0:
+            continue
+        for token, value in targets.items():
+            if token in name and token not in used:
+                changes.append({"index": param["index"], "value": value})
+                used.add(token)
+                break
+    return changes
+
+
 def compose(prompt, bars, seed, tempo_override, honeydew_call):
     song = honeydew_call("song")
     instruments = honeydew_call("instruments")
@@ -216,15 +236,32 @@ def compose(prompt, bars, seed, tempo_override, honeydew_call):
         raise RuntimeError(applied["error"])
     created = applied.get("result", {}).get("created", [])
     warnings = []
+    roles = ("drums", "bass", "chords", "lead")
     for index, channel in enumerate(created):
+        role = roles[index] if index < len(roles) else "lead"
+        if role != "drums":
+            params_result = honeydew_call(
+                "instrument_params", None, channel["channel_id"]
+            )
+            params_result = params_result.get("result", params_result)
+            modules = params_result.get("modules", [])
+            if modules:
+                changes = _instrument_changes(modules[0].get("parameters", []), role)
+                if changes:
+                    tuned = honeydew_call("set_instrument_params", {
+                        "channel_id": channel["channel_id"],
+                        "module_id": modules[0]["module_id"],
+                        "changes": changes,
+                    })
+                    if tuned.get("error"):
+                        warnings.append(channel["channel_name"] + ": " + tuned["error"])
         design = plan["sound_design"][index]
-        if not design:
-            continue
-        result = honeydew_call("apply_sound_design", {
-            "channel_id": channel["channel_id"], "effects": design
-        })
-        if result.get("error"):
-            warnings.append(channel["channel_name"] + ": " + result["error"])
+        if design:
+            result = honeydew_call("apply_sound_design", {
+                "channel_id": channel["channel_id"], "effects": design
+            })
+            if result.get("error"):
+                warnings.append(channel["channel_name"] + ": " + result["error"])
     return {
         "brief": plan["brief"],
         "created_tracks": created,
