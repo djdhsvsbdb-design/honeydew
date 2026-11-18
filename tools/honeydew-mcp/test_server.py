@@ -12,7 +12,7 @@ class McpTests(unittest.TestCase):
     def test_initialize_and_tools(self):
         initialized = server.handle({"method": "initialize", "params": {"protocolVersion": "2025-03-26"}})
         self.assertEqual(initialized["serverInfo"]["name"], "honeydew")
-        self.assertEqual(len(server.handle({"method": "tools/list"})["tools"]), 5)
+        self.assertEqual(len(server.handle({"method": "tools/list"})["tools"]), 7)
 
     def test_get_song_forwards_to_loopback_with_token(self):
         listener = socket.socket()
@@ -64,6 +64,27 @@ class McpTests(unittest.TestCase):
             ("instrument_params", None, 7),
             ("set_instrument_params", {"channel_id": 7, "module_id": 2,
                                        "changes": [{"index": 9, "value": 0.7}]}, None),
+        ])
+
+
+
+    def test_effect_tools_forward_channel_and_parameters(self):
+        requests = []
+        def fake_honeydew(action, payload=None, channel_id=None):
+            requests.append((action, payload, channel_id))
+            return {"result": {"ok": True}}
+        with patch.object(server, "honeydew", fake_honeydew):
+            for name, arguments in [
+                ("list_effects", {"channel_id": 7}),
+                ("set_effect_params", {"channel_id": 7, "module_id": 4,
+                    "changes": [{"index": 3, "value": 0.65}]}),
+            ]:
+                result = server.handle({"method": "tools/call", "params": {"name": name, "arguments": arguments}})
+                self.assertFalse(result["isError"])
+        self.assertEqual(requests, [
+            ("effects", None, 7),
+            ("set_effect_params", {"channel_id": 7, "module_id": 4,
+                "changes": [{"index": 3, "value": 0.65}]}, None),
         ])
 
 
