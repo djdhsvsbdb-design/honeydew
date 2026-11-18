@@ -1,17 +1,36 @@
 //! The in-app prompt for creating a fresh multi-track arrangement.
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::{BufRead, BufReader, BufWriter, Write};
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use eframe::egui::{self, Id, TextEdit};
+#[cfg(not(target_arch = "wasm32"))]
 use serde_json::{Value, json};
 
 use super::{AppCtx, Nav};
 
+#[cfg(not(target_arch = "wasm32"))]
 const MCP_SERVER: &str = include_str!("../../../tools/honeydew-mcp/server.py");
+#[cfg(not(target_arch = "wasm32"))]
 const MCP_COMPOSER: &str = include_str!("../../../tools/honeydew-mcp/composer.py");
+
+#[cfg(not(target_arch = "wasm32"))]
+struct ChildGuard(std::process::Child);
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 pub struct State {
     prompt: String,
@@ -37,6 +56,7 @@ impl Default for State {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn read_rpc(reader: &mut BufReader<std::process::ChildStdout>) -> Result<Value, String> {
     let mut line = String::new();
     reader.read_line(&mut line).map_err(|e| format!("MCP read failed: {e}"))?;
@@ -46,6 +66,7 @@ fn read_rpc(reader: &mut BufReader<std::process::ChildStdout>) -> Result<Value, 
     serde_json::from_str(&line).map_err(|e| format!("Invalid MCP response: {e}"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> Result<String, String> {
     if !api_key.trim().is_empty() && api_key.trim().len() < 12 {
         return Err("Groq API key looks incomplete.".into());
@@ -63,7 +84,7 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
             .map_err(|e| format!("Cannot write local AI producer: {e}"))?;
 
         #[cfg(windows)]
-        let mut child = {
+        let mut child = ChildGuard({
             let mut command = Command::new("python");
             command.arg(&server_path);
             command
@@ -83,9 +104,9 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
                 if !api_key.trim().is_empty() { fallback.env("GROQ_API_KEY", api_key.trim()); }
                 fallback.spawn()
             }).map_err(|e| format!("Python 3 is required to run the local AI producer: {e}"))?
-        };
+        });
         #[cfg(not(windows))]
-        let mut child = {
+        let mut child = ChildGuard({
             let mut command = Command::new("python3");
             command.arg(&server_path).current_dir(&dir)
                 .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
@@ -94,10 +115,10 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
                 command.env("GROQ_API_KEY", api_key.trim());
             }
             command.spawn().map_err(|e| format!("Python 3 is required to run the local AI producer: {e}"))?
-        };
+        });
 
-        let mut input = BufWriter::new(child.stdin.take().ok_or("Cannot open MCP input")?);
-        let output = child.stdout.take().ok_or("Cannot open MCP output")?;
+        let mut input = BufWriter::new(child.0.stdin.take().ok_or("Cannot open MCP input")?);
+        let output = child.0.stdout.take().ok_or("Cannot open MCP output")?;
         let mut reader = BufReader::new(output);
 
         writeln!(input, "{}", json!({
@@ -193,23 +214,31 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
                 let busy = state.worker.is_some();
                 if ui.add_enabled(!busy && app.settings.mcp_enabled,
                     egui::Button::new(if busy { "Producing…" } else { "Generate with Groq" })).clicked() {
+                    #[cfg(not(target_arch = "wasm32"))]
                     let key = state.groq_api_key.trim().to_owned();
-                    if key.is_empty() && std::env::var("GROQ_API_KEY").is_err() {
-                        state.error = Some("Paste your Groq API key above or set GROQ_API_KEY before starting Honeydew.".into());
-                    } else {
-                        let prompt = state.prompt.clone();
-                        let bars = state.bars;
-                        let seed = state.seed;
-                        let (tx, rx) = mpsc::channel();
-                        state.worker = Some(rx);
-                        state.status = Some("Groq is inspecting the project and composing…".into());
-                        state.error = None;
-                        let ctx = ui.ctx().clone();
-                        thread::spawn(move || {
-                            let result = run_groq_producer(prompt, bars, seed, key);
-                            let _ = tx.send(result);
-                            ctx.request_repaint();
-                        });
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if key.is_empty() && std::env::var("GROQ_API_KEY").is_err() {
+                            state.error = Some("Paste your Groq API key above or set GROQ_API_KEY before starting Honeydew.".into());
+                        } else {
+                            let prompt = state.prompt.clone();
+                            let bars = state.bars;
+                            let seed = state.seed;
+                            let (tx, rx) = mpsc::channel();
+                            state.worker = Some(rx);
+                            state.status = Some("Groq is inspecting the project and composing…".into());
+                            state.error = None;
+                            let ctx = ui.ctx().clone();
+                            thread::spawn(move || {
+                                let result = run_groq_producer(prompt, bars, seed, key);
+                                let _ = tx.send(result);
+                                ctx.request_repaint();
+                            });
+                        }
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        state.error = Some("Groq AI Composer is available in the desktop build only.".into());
                     }
                 }
                 if ui.button("Cancel").clicked() {
