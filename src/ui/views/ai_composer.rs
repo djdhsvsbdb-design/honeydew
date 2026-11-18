@@ -162,23 +162,22 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
     let mut open = true;
     let mut nav = None;
 
-    if let Some(worker) = &state.worker {
-        match worker.try_recv() {
-            Ok(Ok(summary)) => {
-                state.status = Some(summary);
-                state.worker = None;
-                state.error = None;
-            }
-            Ok(Err(error)) => {
-                state.error = Some(error);
-                state.worker = None;
-            }
-            Err(mpsc::TryRecvError::Disconnected) => {
-                state.error = Some("AI producer stopped unexpectedly.".into());
-                state.worker = None;
-            }
-            Err(mpsc::TryRecvError::Empty) => {}
+    let worker_result = state.worker.as_ref().map(Receiver::try_recv);
+    match worker_result {
+        Some(Ok(Ok(summary))) => {
+            state.status = Some(summary);
+            state.worker = None;
+            state.error = None;
         }
+        Some(Ok(Err(error))) => {
+            state.error = Some(error);
+            state.worker = None;
+        }
+        Some(Err(mpsc::TryRecvError::Disconnected)) => {
+            state.error = Some("AI producer stopped unexpectedly.".into());
+            state.worker = None;
+        }
+        Some(Err(mpsc::TryRecvError::Empty)) | None => {}
     }
 
     egui::Window::new("AI Composer")
