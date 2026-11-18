@@ -88,6 +88,22 @@ TOOLS = [
         }, "required": ["channel_id", "module_id", "changes"], "additionalProperties": False},
     },
     {
+        "name": "apply_sound_design",
+        "description": "Append a validated chain of built-in audio effects to an existing channel. Use exact effect names from the built-in Honeydew effect catalogue. Each effect may set up to 32 normalized parameter values; negative indexes -1, -2 and -3 are Post Gain, Mix and Wet Pan. This rebuilds the channel's rack. Existing VST/CLAP effects can be tuned with set_effect_params but cannot be created by this tool.",
+        "inputSchema": {"type": "object", "properties": {
+            "channel_id": {"type": "integer"},
+            "effects": {"type": "array", "maxItems": 8, "items": {
+                "type": "object", "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "changes": {"type": "array", "maxItems": 32, "items": {
+                        "type": "object", "properties": {
+                            "index": {"type": "integer", "minimum": -3},
+                            "value": {"type": "number", "minimum": 0, "maximum": 1}
+                        }, "required": ["index", "value"], "additionalProperties": False}}
+                }, "required": ["name"], "additionalProperties": False}}
+        }, "required": ["channel_id", "effects"], "additionalProperties": False},
+    },
+    {
         "name": "apply_arrangement",
         "description": "Add or replace 1-16 note/drum clips and optionally set tempo in Honeydew's open song as one undoable edit. Use an existing channel ID to preserve its configured VST sound; use a new built-in synth or Drums for a new channel. Call get_song first. Bars are zero-based; note beats are quarter-note positions relative to each clip. For drums, key is the pad index returned by get_song. To revise a clip, pass replace_clip_id and the existing start_bar/bars. Does not change plugin presets or render audio.",
         "inputSchema": {
@@ -177,11 +193,11 @@ def handle(message):
                   "get_instrument_params": "instrument_params",
                   "set_instrument_params": "set_instrument_params",
                   "list_effects": "effects", "set_effect_params": "set_effect_params",
-                  "apply_arrangement": "arrange"}.get(name)
+                  "apply_sound_design": "apply_sound_design", "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
         try:
-            response = honeydew(action, args if action in ("arrange", "set_instrument_params", "set_effect_params") else None,
+            response = honeydew(action, args if action in ("arrange", "set_instrument_params", "set_effect_params", "apply_sound_design") else None,
                                 channel_id=args.get("channel_id") if action in ("instrument_params", "effects") else None)
             error = response.get("error")
             return {"content": [{"type": "text", "text": json.dumps(response.get("result") if not error else {"error": error})}],
