@@ -221,13 +221,21 @@ def handle(message):
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
                   "set_instrument_params": "set_instrument_params",
-                  "list_effect_catalog": "effect_catalog", "list_effect_catalog": "effect_catalog", "list_effects": "effects", "set_effect_params": "set_effect_params",
+                  "list_effect_catalog": "effect_catalog", "list_effects": "effects",
+                  "set_effect_params": "set_effect_params",
                   "apply_sound_design": "apply_sound_design", "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
         try:
-            response = honeydew(action, args if action in ("arrange", "set_instrument_params", "set_effect_params", "apply_sound_design") else None,
-                                channel_id=args.get("channel_id") if action in ("instrument_params", "effects") else None)
+            response = honeydew(
+                action,
+                args if action in (
+                    "arrange", "set_instrument_params", "set_effect_params",
+                    "apply_sound_design",
+                ) else None,
+                channel_id=args.get("channel_id")
+                if action in ("instrument_params", "effects") else None,
+            )
             error = response.get("error")
             return {"content": [{"type": "text", "text": json.dumps(response.get("result") if not error else {"error": error})}],
                     "isError": bool(error)}
