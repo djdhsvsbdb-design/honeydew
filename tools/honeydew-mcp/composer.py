@@ -161,14 +161,14 @@ def build_plan(prompt, bars, seed, instruments, effect_catalogue, tempo_override
                                 "key": min(96, root + interval),
                                 "velocity": 105 if interval else 125})
         if brief["genre"] == "ambient":
-            bass_notes.append({"beat": bar * 4.0, "length_beats": 3.7,
+            bass_notes.append({"beat": bar * bpb, "length_beats": bpb * 0.92,
                                "key": root - 12, "velocity": 105})
         else:
             for step in range(density):
                 beat = step * (bpb / density)
                 key = root - 12 if step % 4 else root - 12 + 7
-                bass_notes.append({"beat": bar * 4.0 + beat,
-                                   "length_beats": 0.42 if density >= 6 else 0.8,
+                bass_notes.append({"beat": bar * bpb + beat,
+                                   "length_beats": (bpb / density) * 0.9,
                                    "key": key, "velocity": rng.randint(105, 155)})
         if brief["genre"] != "ambient":
             for step in range(4 if brief["density"] == "low" else 8):
