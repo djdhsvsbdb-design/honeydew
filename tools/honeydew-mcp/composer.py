@@ -330,18 +330,14 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
               "tracks": {"type": "array", "minItems": 1, "maxItems": 16,
                          "items": {"type": "object", "additionalProperties": False,
                            "properties": {
-                             "target": {"oneOf": [
-                               {"type": "object", "additionalProperties": False,
-                                "properties": {"kind": {"const": "new"},
-                                               "instrument": {"type": "string"},
-                                               "name": {"type": "string"}},
-                                "required": ["kind", "instrument"]},
-                               {"type": "object", "additionalProperties": False,
-                                "properties": {"kind": {"const": "existing"},
-                                               "channel_id": {"type": "integer"},
-                                               "replace_clip_id": {"type": "integer", "minimum": 1}},
-                                "required": ["kind", "channel_id"]}
-                             ]},
+                             "target": {"type": "object", "additionalProperties": False,
+                               "properties": {
+                                 "kind": {"type": "string", "enum": ["new", "existing"]},
+                                 "instrument": {"type": "string"},
+                                 "name": {"type": "string"},
+                                 "channel_id": {"type": "integer"},
+                                 "replace_clip_id": {"type": "integer", "minimum": 1}
+                               }, "required": ["kind"]},
                              "start_bar": {"type": "integer", "minimum": 0, "maximum": 4095},
                              "bars": {"type": "integer", "minimum": 1, "maximum": 16},
                              "notes": {"type": "array", "maxItems": 512,
