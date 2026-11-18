@@ -378,6 +378,11 @@ impl ProjectTab {
             }
         }
         band(GAP);
+        let row = band(BUTTON_H);
+        if light_button(ui, cx, id.with("AI Compose"), row, "AI Compose", true) {
+            action = Some(MainMenuAction::AiCompose);
+        }
+        band(GAP);
 
         // Project info.
         let header = band(HEADER_H);
