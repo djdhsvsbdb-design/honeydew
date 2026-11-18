@@ -63,6 +63,15 @@ and sent to the live audio engine; a bad index or value changes nothing. For
 Transistor Bass, for example, indexes 2 and 9 are Cutoff and Drive. The tool
 does not load named presets or alter a VST/CLAP plugin's private state.
 
+To inspect or tune built-in audio effects, call `list_effects` with the
+channel ID. It returns each controllable built-in effect's module ID, parameter
+indexes, names, current normalized values, defaults and display text.
+`set_effect_params` changes 1–32 parameters on one effect (values 0–1), after
+validating the entire request. The audio engine receives the changes live and
+the song state is updated. These parameter edits are not individually undoable.
+VST/CLAP plugin effects are currently excluded because the bridge does not
+expose their private parameter state.
+
 Only enable the bridge for trusted local clients. The token is a bearer secret:
 any local process that obtains it can edit the song. The bridge binds only to
 loopback and validates/bounds each request, but it does not implement per-tool
