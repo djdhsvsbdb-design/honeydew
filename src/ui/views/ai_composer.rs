@@ -92,7 +92,11 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
-                .env("PYTHONUTF8", "1");
+                .env("PYTHONUTF8", "1")
+                .env_remove("HONEYDEW_AI_API_KEY")
+                .env_remove("HONEYDEW_AI_PROVIDER")
+                .env_remove("HONEYDEW_AI_BASE_URL")
+                .env_remove("HONEYDEW_AI_MODEL");
             if !api_key.trim().is_empty() {
                 command.env("GROQ_API_KEY", api_key.trim());
             }
@@ -240,7 +244,7 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
                         state.error = Some("Groq AI Composer is available in the desktop build only.".into());
                     }
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.add_enabled(!busy, egui::Button::new("Cancel")).clicked() {
                     nav = Some(Nav::Close);
                 }
             });
