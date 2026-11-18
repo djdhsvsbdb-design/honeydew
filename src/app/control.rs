@@ -191,10 +191,18 @@ struct SetInstrumentParams {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct EffectParameterEdit {
+    /// Module params are non-negative; common params are -1 (Post Gain), -2 (Mix), -3 (Wet Pan).
+    index: i32,
+    value: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SetEffectParams {
     channel_id: i32,
     module_id: i32,
-    changes: Vec<ParameterEdit>,
+    changes: Vec<EffectParameterEdit>,
 }
 
 /// Effect-only edits. Plugin effects are excluded until their plugin-specific state API is exposed.
@@ -224,22 +232,29 @@ fn set_effect_params(
     let mut seen = std::collections::HashSet::new();
     let mut changes = Vec::with_capacity(request.changes.len());
     for change in request.changes {
+        let valid_index = if change.index >= 0 {
+            module.param_spec(change.index as usize).is_some()
+                && module.param(change.index).is_some()
+        } else {
+            matches!(change.index, -1..=-3)
+        };
         if !seen.insert(change.index)
-            || module.param_spec(change.index).is_none()
-            || module.params.get(change.index).is_none()
+            || !valid_index
             || !change.value.is_finite()
             || !(0.0..=1.0).contains(&change.value)
         {
             return Err(format!(
-                "invalid or duplicate parameter {}: use a unique index and a normalized value from 0 to 1",
+                "invalid or duplicate parameter {}: use a valid module index or common index -1..-3, and a normalized value from 0 to 1",
                 change.index
             ));
         }
         changes.push((change.index, change.value as f32));
     }
     for &(index, value) in &changes {
-        module.params[index] = value;
-        module.init_follows(index as i32);
+        *module.param_mut(index).expect("validated effect parameter") = value;
+        if index >= 0 {
+            module.init_follows(index);
+        }
     }
     Ok((channel_index, changes))
 }
@@ -503,7 +518,7 @@ impl HoneydewApp {
                 let module_id = edit.module_id;
                 let (channel, changes) = set_effect_params(&mut self.song, edit)?;
                 for &(index, value) in &changes {
-                    self.audio.send(AudioCommand::SetParam { channel, instance_id: module_id, index: index as i32, value });
+                    self.audio.send(AudioCommand::SetParam { channel, instance_id: module_id, index, value });
                 }
                 self.song_edited(SongEdit::ChannelParam, tick);
                 Ok(json!({"channel_id": self.song.channels[channel].id, "module_id": module_id,
@@ -598,26 +613,39 @@ impl HoneydewApp {
                 {
                     return None;
                 }
+                let mut parameters = module.params.iter().enumerate().filter_map(|(index, &value)| {
+                    let param = module.param_spec(index)?;
+                    let kind = match param.kind {
+                        ParamKind::Continuous { .. } => "continuous",
+                        ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
+                        ParamKind::Toggle => "toggle",
+                    };
+                    Some(json!({
+                        "index": index,
+                        "name": param.name,
+                        "kind": kind,
+                        "options": param.kind.items(),
+                        "value": value,
+                        "default": param.default,
+                        "display": param.display_text(value),
+                    }))
+                }).collect::<Vec<_>>();
+                for (common_index, param) in crate::params::COMMON_PARAMS.iter().enumerate() {
+                    let value = module.common.0[common_index];
+                    parameters.push(json!({
+                        "index": -1 - common_index as i32,
+                        "name": param.name,
+                        "kind": "continuous",
+                        "options": [],
+                        "value": value,
+                        "default": param.default,
+                        "display": param.display_text(value),
+                    }));
+                }
                 Some(json!({
                     "module_id": module.instance_id,
                     "effect": spec.display_name,
-                    "parameters": module.params.iter().enumerate().filter_map(|(index, &value)| {
-                        let param = module.param_spec(index)?;
-                        let kind = match param.kind {
-                            ParamKind::Continuous { .. } => "continuous",
-                            ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
-                            ParamKind::Toggle => "toggle",
-                        };
-                        Some(json!({
-                            "index": index,
-                            "name": param.name,
-                            "kind": kind,
-                            "options": param.kind.items(),
-                            "value": value,
-                            "default": param.default,
-                            "display": param.display_text(value),
-                        }))
-                    }).collect::<Vec<_>>()
+                    "parameters": parameters
                 }))
             })
             .collect::<Vec<_>>();
