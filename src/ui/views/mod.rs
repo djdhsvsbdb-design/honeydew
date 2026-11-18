@@ -732,7 +732,9 @@ impl Slots {
                 app,
                 tab,
             ),
-            Overlay::AiComposer => ai_composer::show(&mut self.ai_composer, ui, app),
+            Overlay::AiComposer => {
+                top.then(|| ai_composer::show(&mut self.ai_composer, ui, app))?
+            }
             // Modal in its own layers: hidden while a message shows over it.
             Overlay::SaveDialog { name } => {
                 top.then(|| save_dialog::show(&mut self.export, ui, app, name))?
