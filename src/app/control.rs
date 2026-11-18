@@ -204,6 +204,90 @@ struct SetEffectParams {
     changes: Vec<EffectParameterEdit>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EffectDesign {
+    name: String,
+    #[serde(default)]
+    changes: Vec<EffectParameterEdit>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApplySoundDesign {
+    channel_id: i32,
+    effects: Vec<EffectDesign>,
+}
+
+fn effect_type_id(name: &str) -> Option<u16> {
+    crate::params::modules()
+        .chain([
+            &crate::params::DYNAMIC_EQ,
+            &crate::params::MODULATOR,
+            &crate::params::DE_ESSER,
+            &crate::params::DENOISE,
+            &crate::params::HALF_TIME,
+        ])
+        .find(|spec| {
+            spec.role == crate::params::Role::Effect
+                && spec.display_name.eq_ignore_ascii_case(name)
+        })
+        .map(|spec| spec.id)
+}
+
+fn apply_sound_design(song: &mut Song, request: ApplySoundDesign) -> Result<Vec<i32>, String> {
+    if request.effects.len() > 8 {
+        return Err("at most 8 effects per channel".into());
+    }
+    let channel_index = song
+        .channels
+        .iter()
+        .position(|ch| ch.id == request.channel_id && ch.id != 0)
+        .ok_or_else(|| format!("channel {} is not in the open song", request.channel_id))?;
+    let mut additions = Vec::with_capacity(request.effects.len());
+    for effect in request.effects {
+        let type_id = effect_type_id(&effect.name)
+            .ok_or_else(|| format!("unknown built-in effect: {}", effect.name))?;
+        if effect.changes.len() > 32 {
+            return Err("at most 32 parameter changes per effect".into());
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut changes = Vec::with_capacity(effect.changes.len());
+        let module = crate::song::ModuleInstance::new(type_id, 0);
+        for change in effect.changes {
+            let valid_index = if change.index >= 0 {
+                module.param_spec(change.index as usize).is_some()
+                    && module.param(change.index).is_some()
+            } else {
+                matches!(change.index, -3..=-1)
+            };
+            if !seen.insert(change.index)
+                || !valid_index
+                || !change.value.is_finite()
+                || !(0.0..=1.0).contains(&change.value)
+            {
+                return Err(format!("invalid parameter {} for effect {}", change.index, effect.name));
+            }
+            changes.push((change.index, change.value as f32));
+        }
+        additions.push((type_id, changes));
+    }
+    let channel = &mut song.channels[channel_index];
+    let mut ids = Vec::with_capacity(additions.len());
+    for (type_id, changes) in additions {
+        let id = channel.rack.add(type_id);
+        let module = channel.rack.get_mut(id).expect("new effect module exists");
+        for (index, value) in changes {
+            *module.param_mut(index).expect("validated effect parameter") = value;
+            if index >= 0 {
+                module.init_follows(index);
+            }
+        }
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
 /// Effect-only edits. Plugin parameters use the same normalized module parameter path as built-in effects.
 fn set_effect_params(
     song: &mut Song,
@@ -517,6 +601,18 @@ impl HoneydewApp {
                 .and_then(|id| i32::try_from(id).ok())
                 .ok_or_else(|| "channel_id must be an integer".to_owned())
                 .and_then(|id| self.control_effects(id)),
+            Some("apply_sound_design") => serde_json::from_value::<ApplySoundDesign>(
+                value.get("edit").cloned().unwrap_or(Value::Null),
+            )
+            .map_err(|e| e.to_string())
+            .and_then(|edit| {
+                let channel_id = edit.channel_id;
+                let ids = apply_sound_design(&mut self.song, edit)?;
+                if !ids.is_empty() {
+                    self.song_edited(SongEdit::RackRebuild, tick);
+                }
+                Ok(json!({"channel_id": channel_id, "effect_module_ids": ids}))
+            }),
             Some("set_effect_params") => serde_json::from_value::<SetEffectParams>(
                 value.get("edit").cloned().unwrap_or(Value::Null),
             )
