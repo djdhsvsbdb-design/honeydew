@@ -78,7 +78,7 @@ TOOLS = [
     },
     {
         "name": "set_effect_params",
-        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in audio effect. Call list_effects first for module_id and parameter indexes. Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin effects are not supported yet.",
+        "description": "Adjust 1-32 normalized parameters (0-1) of one existing built-in audio effect. Call list_effects first for module_id and parameter indexes. Common controls use indexes -1 (Post Gain), -2 (Mix), and -3 (Wet Pan). Changes are applied live and saved to the song; these parameter edits are not individually undoable. Plugin effects are not supported yet.",
         "inputSchema": {"type": "object", "properties": {
             "channel_id": {"type": "integer"}, "module_id": {"type": "integer"},
             "changes": {"type": "array", "minItems": 1, "maxItems": 32, "items": {
