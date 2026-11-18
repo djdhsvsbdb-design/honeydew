@@ -639,9 +639,13 @@ impl HoneydewApp {
                 let channel_id = edit.channel_id;
                 let ids = apply_sound_design(&mut self.song, edit)?;
                 if !ids.is_empty() {
-                    self.song_edited(SongEdit::RackRebuild, tick);
+                    self.song_edited(SongEdit::Final, tick);
                 }
-                Ok(json!({"channel_id": channel_id, "effect_module_ids": ids}))
+                Ok(json!({
+                    "channel_id": channel_id,
+                    "effect_module_ids": ids,
+                    "undoable": !ids.is_empty()
+                }))
             }),
             Some("set_effect_params") => serde_json::from_value::<SetEffectParams>(
                 value.get("edit").cloned().unwrap_or(Value::Null),
