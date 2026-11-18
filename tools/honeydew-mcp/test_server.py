@@ -12,7 +12,7 @@ class McpTests(unittest.TestCase):
     def test_initialize_and_tools(self):
         initialized = server.handle({"method": "initialize", "params": {"protocolVersion": "2025-03-26"}})
         self.assertEqual(initialized["serverInfo"]["name"], "honeydew")
-        self.assertEqual(len(server.handle({"method": "tools/list"})["tools"]), 7)
+        self.assertEqual(len(server.handle({"method": "tools/list"})["tools"]), 8)
 
     def test_get_song_forwards_to_loopback_with_token(self):
         listener = socket.socket()
@@ -67,6 +67,17 @@ class McpTests(unittest.TestCase):
         ])
 
 
+
+    def test_apply_sound_design_forwards_effect_chain(self):
+        request = {"channel_id": 12, "effects": [
+            {"name": "Reverb", "changes": [{"index": -2, "value": 0.4}]}
+        ]}
+        with patch.object(server, "honeydew", return_value={"result": {"effect_module_ids": [3]}}) as call:
+            result = server.handle({"method": "tools/call", "params": {
+                "name": "apply_sound_design", "arguments": request
+            }})
+        self.assertFalse(result["isError"])
+        call.assert_called_once_with("apply_sound_design", request, channel_id=None)
 
     def test_effect_tools_forward_channel_and_parameters(self):
         requests = []
