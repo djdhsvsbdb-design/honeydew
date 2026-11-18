@@ -221,6 +221,7 @@ struct ApplySoundDesign {
 
 fn effect_type_id(name: &str) -> Option<u16> {
     crate::params::modules()
+        .chain(crate::params::LEMON_MODULES.iter())
         .chain([
             &crate::params::DYNAMIC_EQ,
             &crate::params::MODULATOR,
@@ -597,6 +598,7 @@ impl HoneydewApp {
 
             Some("effect_catalog") => Ok(json!({
                 "effects": crate::params::modules()
+                    .chain(crate::params::LEMON_MODULES.iter())
                     .chain([
                         &crate::params::DYNAMIC_EQ,
                         &crate::params::MODULATOR,
