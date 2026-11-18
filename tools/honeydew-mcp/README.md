@@ -53,12 +53,30 @@ The `compose_song` MCP tool provides the same multi-track workflow to local
 MCP clients and can optionally use an OpenAI-compatible model to interpret the
 brief before generating notes.
 
-Optional AI brief interpretation uses an OpenAI-compatible chat-completions
-endpoint. Set `HONEYDEW_AI_API_KEY`, and optionally
-`HONEYDEW_AI_BASE_URL` and `HONEYDEW_AI_MODEL`, in the environment of the
-MCP adapter. Without a key, genre/mood/tempo classification uses local rules and
-composition still works offline. When configured, the prompt is sent to that
-endpoint for classification. No API key is required for the local fallback.
+## Groq AI producer
+
+Set `GROQ_API_KEY` in the **environment of the MCP adapter process** (not
+only in GitHub Actions secrets). On Windows PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable("GROQ_API_KEY", "your-groq-key", "User")
+```
+
+Then completely restart the MCP client so its adapter inherits the variable.
+The adapter defaults to Groq's OpenAI-compatible endpoint and the configured
+default model; override with `GROQ_BASE_URL` or `GROQ_MODEL` if needed.
+Alternatively, use `HONEYDEW_AI_API_KEY` with `HONEYDEW_AI_PROVIDER=groq`,
+and optionally set `HONEYDEW_AI_BASE_URL` and `HONEYDEW_AI_MODEL`.
+
+When a key is present, `compose_song` runs an AI producer agent. It inspects
+the open song and available instruments/effects, then uses bounded tool calls
+to create an arrangement and adjust supported synth/effect parameters. Without
+a key, it falls back to the offline procedural composer.
+
+The AI producer can create MIDI note arrangements and configure supported
+built-in sounds/effects. It cannot listen to or judge the rendered audio,
+cannot create new third-party VST/CLAP instances, and does not guarantee a
+professional mix. Existing project content is preserved by default.
 
 Example: “Create 8 bars of dark melodic techno, sparse drums, a driving bass,
 wide chords and a restrained lead.” Then listen and revise the generated tracks.
