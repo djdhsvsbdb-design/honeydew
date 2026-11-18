@@ -166,7 +166,7 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
     let mut open = true;
     let mut nav = None;
 
-    let worker_result = state.worker.as_ref().map(Receiver::try_recv);
+    let worker_result = state.worker.as_ref().map(|worker| worker.try_recv());
     match worker_result {
         Some(Ok(Ok(summary))) => {
             state.status = Some(summary);
