@@ -305,7 +305,7 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
     endpoint = base if base.endswith("/chat/completions") else base + "/chat/completions"
     model = os.environ.get(
         "HONEYDEW_AI_MODEL",
-        os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile" if is_groq else "gpt-4o-mini"),
+        os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b" if is_groq else "gpt-4o-mini"),
     )
 
     def tool(name, description, properties=None, required=None):
@@ -414,7 +414,7 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
         {"role": "user", "content": str(prompt)[:2000]},
     ]
     for _ in range(10):
-        payload = {"model": model, "temperature": 0.45, "messages": messages,
+        payload = {"model": model, "messages": messages,
                    "tools": tools, "tool_choice": "auto"}
         req = urllib.request.Request(
             endpoint, data=json.dumps(payload).encode(),
