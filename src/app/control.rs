@@ -595,6 +595,34 @@ impl HoneydewApp {
                     .collect::<Vec<_>>()
             })),
 
+            Some("effect_catalog") => Ok(json!({
+                "effects": crate::params::modules()
+                    .chain([
+                        &crate::params::DYNAMIC_EQ,
+                        &crate::params::MODULATOR,
+                        &crate::params::DE_ESSER,
+                        &crate::params::DENOISE,
+                        &crate::params::HALF_TIME,
+                    ])
+                    .filter(|spec| spec.role == crate::params::Role::Effect)
+                    .map(|spec| json!({
+                        "name": spec.display_name,
+                        "type_id": spec.id,
+                        "parameters": spec.params.iter().enumerate().map(|(index, param)| json!({
+                            "index": index,
+                            "name": param.name,
+                            "kind": match param.kind {
+                                ParamKind::Continuous { .. } => "continuous",
+                                ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
+                                ParamKind::Toggle => "toggle",
+                            },
+                            "options": param.kind.items(),
+                            "default": param.default,
+                            "display": param.display_text(param.default),
+                        })).collect::<Vec<_>>()
+                    }))
+                    .collect::<Vec<_>>()
+            })),
             Some("effects") => value
                 .get("channel_id")
                 .and_then(Value::as_i64)
