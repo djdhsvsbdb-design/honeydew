@@ -204,7 +204,7 @@ struct SetEffectParams {
     changes: Vec<EffectParameterEdit>,
 }
 
-/// Effect-only edits. Plugin effects are excluded until their plugin-specific state API is exposed.
+/// Effect-only edits. Plugin parameters use the same normalized module parameter path as built-in effects.
 fn set_effect_params(
     song: &mut Song,
     request: SetEffectParams,
@@ -228,10 +228,8 @@ fn set_effect_params(
             )
         })?;
     let spec = crate::params::module_spec(module.type_id).ok_or("unknown module type")?;
-    if spec.role != crate::params::Role::Effect
-        || module.type_id == crate::song::plugin::PLUGIN_EFFECT
-    {
-        return Err("module is not a controllable built-in audio effect".into());
+    if spec.role != crate::params::Role::Effect {
+        return Err("module is not an audio effect".into());
     }
     let mut seen = std::collections::HashSet::new();
     let mut changes = Vec::with_capacity(request.changes.len());
@@ -625,9 +623,7 @@ impl HoneydewApp {
             .iter()
             .filter_map(|module| {
                 let spec = crate::params::module_spec(module.type_id)?;
-                if spec.role != crate::params::Role::Effect
-                    || module.type_id == crate::song::plugin::PLUGIN_EFFECT
-                {
+                if spec.role != crate::params::Role::Effect {
                     return None;
                 }
                 let mut parameters = module
@@ -666,7 +662,7 @@ impl HoneydewApp {
                 }
                 Some(json!({
                     "module_id": module.instance_id,
-                    "effect": spec.display_name,
+                    "effect": module.title(),
                     "parameters": parameters
                 }))
             })
@@ -863,6 +859,56 @@ mod tests {
         }))
         .unwrap();
         assert!(set_instrument_params(&mut song, request).is_err());
+    }
+
+    #[test]
+    fn plugin_effect_parameters_are_listed_and_updated() {
+        let mut app = HoneydewApp::default();
+        let channel = app
+            .song
+            .insert_channel(1, ChannelKind::Instrument)
+            .unwrap();
+        let channel_id = app.song.channels[channel].id;
+        let module_id = app.song.channels[channel]
+            .rack
+            .add(crate::song::plugin::PLUGIN_EFFECT);
+        let module = app.song.channels[channel]
+            .rack
+            .get_mut(module_id)
+            .unwrap();
+        module.file.plugin = Some(crate::song::plugin::PluginRef {
+            format: "clap".into(),
+            id: "org.example.test-effect".into(),
+            name: "Test Effect".into(),
+            vendor: "Honeydew Tests".into(),
+            params: vec![crate::song::plugin::PluginParam {
+                id: 42,
+                name: "Drive".into(),
+                default: 0.25,
+            }],
+            ..Default::default()
+        });
+        module.params.push(0.25);
+
+        let listed = app.control_call(
+            json!({"action": "effects", "channel_id": channel_id}),
+            0,
+        );
+        let effects = &listed["result"]["effects"];
+        assert!(effects.iter().any(|effect| effect["effect"] == "Test Effect"));
+        let params = &effects[0]["parameters"];
+        assert!(params.iter().any(|p| p["index"] == 1 && p["name"] == "Drive"));
+
+        let changed = app.control_call(
+            json!({"action": "set_effect_params", "edit": {
+                "channel_id": channel_id,
+                "module_id": module_id,
+                "changes": [{"index": 1, "value": 0.75}]
+            }}),
+            0,
+        );
+        assert_eq!(changed["result"]["changed"], 1, "{changed}");
+        assert!((app.song.channels[channel].rack.get(module_id).unwrap().params[1] - 0.75).abs() < 0.0001);
     }
 
     #[test]
