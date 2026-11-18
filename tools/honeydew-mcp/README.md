@@ -43,15 +43,26 @@ this local stdio configuration does not automatically make it available there.
 
 ## Multi-track composition
 
-The desktop app also has a **Project → AI Compose** panel. It creates a fresh
-four-track arrangement (drums, bass, chords and lead), sets tempo, and appends
-matching built-in effects. It does not replace existing clips; the result is
-one undoable song edit. The offline note generator is deterministic for a given
-seed. It is a procedural composer, not a trained MIDI model.
+The desktop app's **Project → AI Compose** panel now has a **Generate with Groq**
+action. It starts the bundled local MCP adapter from the app's embedded Python
+sources, sends the prompt to Groq, and lets the model inspect the open song,
+instruments and effects before it calls Honeydew's authenticated loopback tools.
+The resulting arrangement and sound-design edits are applied directly to the
+open project; existing clips are preserved by default.
 
-The `compose_song` MCP tool provides the same multi-track workflow to local
-MCP clients and can optionally use an OpenAI-compatible model to interpret the
-brief before generating notes.
+To use the in-app producer:
+1. Enable **MCP Control** in Honeydew Settings (and make sure its local control
+   token has been created).
+2. Open **Project → AI Compose**.
+3. Paste the Groq API key into the password field and click **Generate with Groq**.
+   The key is held in app memory for the session and passed only to the local
+   adapter process; it is not written to the project or settings.
+4. Keep Honeydew open while the producer is working. Python 3 must be installed
+   and available as `python3` (or `python` / `py -3` on Windows).
+
+The separate `compose_song` MCP tool remains available to external MCP clients.
+Without a configured API key it uses the deterministic offline procedural
+composer. Neither mode can audition the rendered audio automatically.
 
 ## Groq AI producer
 
