@@ -96,7 +96,7 @@ TOOLS = [
     },
     {
         "name": "apply_sound_design",
-        "description": "Append a validated chain of built-in audio effects to an existing channel. Use exact effect names from the built-in Honeydew effect catalogue. Each effect may set up to 32 normalized parameter values; negative indexes -1, -2 and -3 are Post Gain, Mix and Wet Pan. This rebuilds the channel's rack. Existing VST/CLAP effects can be tuned with set_effect_params but cannot be created by this tool.",
+        "description": "Append a validated chain of built-in audio effects to an existing channel. Use exact effect names from the built-in Honeydew effect catalogue. Each effect may set up to 32 normalized parameter values; negative indexes -1, -2 and -3 are Post Gain, Mix and Wet Pan. This rebuilds the channel's rack as one undoable song edit. Existing VST/CLAP effects can be tuned with set_effect_params but cannot be created by this tool.",
         "inputSchema": {"type": "object", "properties": {
             "channel_id": {"type": "integer"},
             "effects": {"type": "array", "maxItems": 8, "items": {
