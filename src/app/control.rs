@@ -188,7 +188,6 @@ struct SetInstrumentParams {
     changes: Vec<ParameterEdit>,
 }
 
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EffectParameterEdit {
@@ -222,7 +221,12 @@ fn set_effect_params(
     let module = channel
         .rack
         .get_mut(request.module_id)
-        .ok_or_else(|| format!("module {} is not on channel {}", request.module_id, request.channel_id))?;
+        .ok_or_else(|| {
+            format!(
+                "module {} is not on channel {}",
+                request.module_id, request.channel_id
+            )
+        })?;
     let spec = crate::params::module_spec(module.type_id).ok_or("unknown module type")?;
     if spec.role != crate::params::Role::Effect
         || module.type_id == crate::song::plugin::PLUGIN_EFFECT
@@ -509,20 +513,34 @@ impl HoneydewApp {
                     .collect::<Vec<_>>()
             })),
 
-            Some("effects") => value.get("channel_id").and_then(Value::as_i64)
-                .and_then(|id| i32::try_from(id).ok()).ok_or_else(|| "channel_id must be an integer".to_owned())
+            Some("effects") => value
+                .get("channel_id")
+                .and_then(Value::as_i64)
+                .and_then(|id| i32::try_from(id).ok())
+                .ok_or_else(|| "channel_id must be an integer".to_owned())
                 .and_then(|id| self.control_effects(id)),
             Some("set_effect_params") => serde_json::from_value::<SetEffectParams>(
                 value.get("edit").cloned().unwrap_or(Value::Null),
-            ).map_err(|e| e.to_string()).and_then(|edit| {
+            )
+            .map_err(|e| e.to_string())
+            .and_then(|edit| {
                 let module_id = edit.module_id;
                 let (channel, changes) = set_effect_params(&mut self.song, edit)?;
                 for &(index, value) in &changes {
-                    self.audio.send(AudioCommand::SetParam { channel, instance_id: module_id, index, value });
+                    self.audio.send(AudioCommand::SetParam {
+                        channel,
+                        instance_id: module_id,
+                        index,
+                        value,
+                    });
                 }
                 self.song_edited(SongEdit::ChannelParam, tick);
-                Ok(json!({"channel_id": self.song.channels[channel].id, "module_id": module_id,
-                    "changed": changes.len(), "undoable": false}))
+                Ok(json!({
+                    "channel_id": self.song.channels[channel].id,
+                    "module_id": module_id,
+                    "changed": changes.len(),
+                    "undoable": false
+                }))
             }),
             Some("instrument_params") => value
                 .get("channel_id")
@@ -613,23 +631,28 @@ impl HoneydewApp {
                 {
                     return None;
                 }
-                let mut parameters = module.params.iter().enumerate().filter_map(|(index, &value)| {
-                    let param = module.param_spec(index)?;
-                    let kind = match param.kind {
-                        ParamKind::Continuous { .. } => "continuous",
-                        ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
-                        ParamKind::Toggle => "toggle",
-                    };
-                    Some(json!({
-                        "index": index,
-                        "name": param.name,
-                        "kind": kind,
-                        "options": param.kind.items(),
-                        "value": value,
-                        "default": param.default,
-                        "display": param.display_text(value),
-                    }))
-                }).collect::<Vec<_>>();
+                let mut parameters = module
+                    .params
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &value)| {
+                        let param = module.param_spec(index)?;
+                        let kind = match param.kind {
+                            ParamKind::Continuous { .. } => "continuous",
+                            ParamKind::Menu { .. } | ParamKind::MenuBy { .. } => "menu",
+                            ParamKind::Toggle => "toggle",
+                        };
+                        Some(json!({
+                            "index": index,
+                            "name": param.name,
+                            "kind": kind,
+                            "options": param.kind.items(),
+                            "value": value,
+                            "default": param.default,
+                            "display": param.display_text(value),
+                        }))
+                    })
+                    .collect::<Vec<_>>();
                 for (common_index, param) in crate::params::COMMON_PARAMS.iter().enumerate() {
                     let value = module.common.0[common_index];
                     parameters.push(json!({
@@ -848,7 +871,10 @@ mod tests {
         let channel = app.song.insert_channel(1, ChannelKind::Instrument).unwrap();
         let channel_id = app.song.channels[channel].id;
         let module_id = app.song.channels[channel].rack.add(crate::params::DE_ESSER.id);
-        let listed = app.control_call(json!({"action": "effects", "channel_id": channel_id}), 0);
+        let listed = app.control_call(
+            json!({"action": "effects", "channel_id": channel_id}),
+            0,
+        );
         let params = &listed["result"]["effects"][0]["parameters"];
         assert!(params.iter().any(|p| p["index"] == -2 && p["name"] == "Mix"));
         let changed = app.control_call(json!({"action": "set_effect_params", "edit": {
@@ -856,7 +882,16 @@ mod tests {
             "changes": [{"index": -2, "value": 0.4}]
         }}), 0);
         assert_eq!(changed["result"]["changed"], 1, "{changed}");
-        assert!((app.song.channels[channel].rack.get(module_id).unwrap().common.mix() - 0.4).abs() < 0.0001);
+        assert!(
+            (app.song.channels[channel]
+                .rack
+                .get(module_id)
+                .unwrap()
+                .common
+                .mix()
+                - 0.4)
+                .abs()
+                < 0.0001
+        );
     }
-
 }
