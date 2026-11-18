@@ -612,7 +612,6 @@ impl HoneydewApp {
         })
     }
 
-
     fn control_effects(&self, channel_id: i32) -> Result<Value, String> {
         let channel = self
             .song
@@ -865,22 +864,36 @@ mod tests {
         .unwrap();
         assert!(set_instrument_params(&mut song, request).is_err());
     }
+
     #[test]
     fn effect_common_controls_are_listed_and_updated() {
         let mut app = HoneydewApp::default();
-        let channel = app.song.insert_channel(1, ChannelKind::Instrument).unwrap();
+        let channel = app
+            .song
+            .insert_channel(1, ChannelKind::Instrument)
+            .unwrap();
         let channel_id = app.song.channels[channel].id;
-        let module_id = app.song.channels[channel].rack.add(crate::params::DE_ESSER.id);
+        let module_id = app.song.channels[channel]
+            .rack
+            .add(crate::params::DE_ESSER.id);
         let listed = app.control_call(
             json!({"action": "effects", "channel_id": channel_id}),
             0,
         );
         let params = &listed["result"]["effects"][0]["parameters"];
-        assert!(params.iter().any(|p| p["index"] == -2 && p["name"] == "Mix"));
-        let changed = app.control_call(json!({"action": "set_effect_params", "edit": {
-            "channel_id": channel_id, "module_id": module_id,
-            "changes": [{"index": -2, "value": 0.4}]
-        }}), 0);
+        assert!(
+            params
+                .iter()
+                .any(|p| p["index"] == -2 && p["name"] == "Mix")
+        );
+        let changed = app.control_call(
+            json!({"action": "set_effect_params", "edit": {
+                "channel_id": channel_id,
+                "module_id": module_id,
+                "changes": [{"index": -2, "value": 0.4}]
+            }}),
+            0,
+        );
         assert_eq!(changed["result"]["changed"], 1, "{changed}");
         assert!(
             (app.song.channels[channel]
