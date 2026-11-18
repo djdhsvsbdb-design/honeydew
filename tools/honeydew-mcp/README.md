@@ -41,6 +41,24 @@ the stdio server in Settings → MCP servers, then use its tools in a new chat.
 ChatGPT web requires a separate remote/tunneled MCP connection;
 this local stdio configuration does not automatically make it available there.
 
+## Multi-track composition
+
+The `compose_song` MCP tool creates a fresh four-track arrangement (drums,
+bass, chords and lead) from a natural-language brief, sets tempo, applies
+role-aware built-in synth settings, and appends matching built-in effects. It
+does not replace existing clips. The offline note generator is deterministic
+for a given seed; it is a procedural composer, not a trained MIDI model.
+
+Optional AI brief interpretation uses an OpenAI-compatible chat-completions
+endpoint. Set `HONEYDEW_AI_API_KEY`, and optionally
+`HONEYDEW_AI_BASE_URL` and `HONEYDEW_AI_MODEL`, in the environment of the
+MCP adapter. Without a key, genre/mood/tempo classification uses local rules and
+composition still works offline. When configured, the prompt is sent to that
+endpoint for classification. No API key is required for the local fallback.
+
+Example: “Create 8 bars of dark melodic techno, sparse drums, a driving bass,
+wide chords and a restrained lead.” Then listen and revise the generated tracks.
+
 ## Example request
 
 Ask the client: “Use the Honeydew tools to inspect my open song. Make an
@@ -65,7 +83,10 @@ and sent to the live audio engine; a bad index or value changes nothing. For
 Transistor Bass, for example, indexes 2 and 9 are Cutoff and Drive. The tool
 does not load named presets or alter a VST/CLAP plugin's private state.
 
-To inspect or tune built-in audio effects, call `list_effects` with the
+To discover available built-in effects, call `list_effect_catalog`. To append
+an effect chain to a track, call `apply_sound_design` with those exact effect
+names and normalized parameter values. To inspect or tune built-in and loaded
+VST/CLAP audio effects, call `list_effects` with the
 channel ID. It returns each controllable built-in effect's module ID, parameter
 indexes, names, current normalized values, defaults and display text.
 `set_effect_params` changes 1–32 parameters on one effect (values 0–1), after
