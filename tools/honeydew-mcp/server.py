@@ -11,6 +11,8 @@ import os
 import socket
 import sys
 
+import composer
+
 
 def token_path():
     override = os.environ.get("HONEYDEW_TOKEN_FILE")
@@ -109,6 +111,16 @@ TOOLS = [
         }, "required": ["channel_id", "effects"], "additionalProperties": False},
     },
     {
+        "name": "compose_song",
+        "description": "Create a new multi-track arrangement from a natural-language brief. Generates drums, bass, chords and lead, sets tempo, and appends suitable built-in effects. It never overwrites existing clips. Offline procedural generation is always available; set HONEYDEW_AI_API_KEY to enable optional AI interpretation of the brief. This is not a trained MIDI-GPT model.",
+        "inputSchema": {"type": "object", "properties": {
+            "prompt": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "bars": {"type": "integer", "minimum": 1, "maximum": 16},
+            "seed": {"type": "integer"},
+            "tempo_bpm": {"type": "integer", "minimum": 60, "maximum": 190}
+        }, "required": ["prompt"], "additionalProperties": False},
+    },
+    {
         "name": "apply_arrangement",
         "description": "Add or replace 1-16 note/drum clips and optionally set tempo in Honeydew's open song as one undoable edit. Use an existing channel ID to preserve its configured VST sound; use a new built-in synth or Drums for a new channel. Call get_song first. Bars are zero-based; note beats are quarter-note positions relative to each clip. For drums, key is the pad index returned by get_song. To revise a clip, pass replace_clip_id and the existing start_bar/bars. Does not change plugin presets or render audio.",
         "inputSchema": {
@@ -194,6 +206,18 @@ def handle(message):
         params = message.get("params", {})
         name = params.get("name")
         args = params.get("arguments", {})
+        if name == "compose_song":
+            try:
+                result = composer.compose(
+                    args.get("prompt", ""),
+                    args.get("bars", 8),
+                    args.get("seed", 7),
+                    args.get("tempo_bpm"),
+                    honeydew,
+                )
+                return {"content": [{"type": "text", "text": json.dumps(result)}], "isError": False}
+            except (OSError, ValueError, RuntimeError, KeyError) as exc:
+                return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
                   "set_instrument_params": "set_instrument_params",
