@@ -175,7 +175,8 @@ def handle(message):
         args = params.get("arguments", {})
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
-                  "set_instrument_params": "set_instrument_params",\n                  "list_effects": "effects", "set_effect_params": "set_effect_params",
+                  "set_instrument_params": "set_instrument_params",
+                  "list_effects": "effects", "set_effect_params": "set_effect_params",
                   "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
