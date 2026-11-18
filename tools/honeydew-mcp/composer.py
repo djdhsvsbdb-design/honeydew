@@ -326,19 +326,31 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
         tool("list_effects", "Inspect effects and parameters on an existing channel.",
              {"channel_id": int_id}, ["channel_id"]),
         tool("apply_arrangement", "Create a multi-track arrangement. Existing content is preserved unless replace_clip_id is explicitly supplied. Use only instruments and drum pads discovered from Honeydew.",
-             {"tempo_bpm": {"type": "number"},
+             {"tempo_bpm": {"type": "number", "minimum": 1, "maximum": 999},
               "tracks": {"type": "array", "minItems": 1, "maxItems": 16,
-                         "items": {"type": "object",
+                         "items": {"type": "object", "additionalProperties": False,
                            "properties": {
-                             "target": {"type": "object"},
-                             "start_bar": {"type": "integer", "minimum": 0},
+                             "target": {"oneOf": [
+                               {"type": "object", "additionalProperties": False,
+                                "properties": {"kind": {"const": "new"},
+                                               "instrument": {"type": "string"},
+                                               "name": {"type": "string"}},
+                                "required": ["kind", "instrument"]},
+                               {"type": "object", "additionalProperties": False,
+                                "properties": {"kind": {"const": "existing"},
+                                               "channel_id": {"type": "integer"},
+                                               "replace_clip_id": {"type": "integer", "minimum": 1}},
+                                "required": ["kind", "channel_id"]}
+                             ]},
+                             "start_bar": {"type": "integer", "minimum": 0, "maximum": 4095},
                              "bars": {"type": "integer", "minimum": 1, "maximum": 16},
                              "notes": {"type": "array", "maxItems": 512,
-                               "items": {"type": "object", "properties": {
-                                 "beat": {"type": "number", "minimum": 0},
-                                 "length_beats": {"type": "number", "exclusiveMinimum": 0},
-                                 "key": {"type": "integer", "minimum": 0, "maximum": 127},
-                                 "velocity": {"type": "integer", "minimum": 1, "maximum": 255}},
+                               "items": {"type": "object", "additionalProperties": False,
+                                 "properties": {
+                                   "beat": {"type": "number", "minimum": 0},
+                                   "length_beats": {"type": "number", "exclusiveMinimum": 0},
+                                   "key": {"type": "integer", "minimum": 0, "maximum": 127},
+                                   "velocity": {"type": "integer", "minimum": 1, "maximum": 255}},
                                  "required": ["beat", "length_beats", "key", "velocity"]}}
                            }, "required": ["target", "start_bar", "bars", "notes"]}}},
              ["tracks"]),
@@ -371,7 +383,10 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
              ["channel_id", "module_id", "changes"]),
     ]
 
+    arrangement_applied = False
+
     def execute(name, args):
+        nonlocal arrangement_applied
         if name == "get_song":
             return honeydew_call("song")
         if name == "list_instruments":
@@ -391,7 +406,10 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
         action = action_map.get(name)
         if not action:
             raise ValueError("Unsupported producer tool: " + name)
-        return honeydew_call(action, args)
+        result = honeydew_call(action, args)
+        if name == "apply_arrangement" and not result.get("error"):
+            arrangement_applied = True
+        return result
 
     system = (
         "You are the autonomous music producer inside Honeydew DAW. Use the provided "
@@ -413,7 +431,7 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
         {"role": "system", "content": system},
         {"role": "user", "content": str(prompt)[:2000]},
     ]
-    for _ in range(10):
+    for _ in range(16):
         payload = {"model": model, "messages": messages,
                    "tools": tools, "tool_choice": "auto"}
         req = urllib.request.Request(
@@ -429,6 +447,8 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
         choice = data.get("choices", [{}])[0].get("message", {})
         calls = choice.get("tool_calls") or []
         if not calls:
+            if not arrangement_applied:
+                raise RuntimeError("The AI producer finished without applying an arrangement. Retry with a more specific prompt.")
             return {"provider": "Groq" if is_groq else "OpenAI-compatible API",
                     "model": model, "result": choice.get("content", ""),
                     "note": "Honeydew changes were made through MCP tools. Audio was not auditioned automatically."}
@@ -448,4 +468,4 @@ def ai_produce(prompt, bars, seed, tempo_override, honeydew_call):
                 output = {"error": str(exc)}
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                              "content": json.dumps(output, ensure_ascii=False)[:12000]})
-    raise RuntimeError("AI producer reached its 10-step tool-call limit; inspect the project and retry.")
+    raise RuntimeError("AI producer reached its 16-step tool-call limit; inspect the project and retry.")
