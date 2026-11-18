@@ -3,7 +3,6 @@ use eframe::egui::{self, Id, TextEdit};
 
 use super::{AppCtx, Nav};
 
-#[derive(Default)]
 pub struct State {
     prompt: String,
     bars: u32,
@@ -11,22 +10,18 @@ pub struct State {
     error: Option<String>,
 }
 
-impl State {
-    fn defaults(&mut self) {
-        if self.bars == 0 {
-            self.bars = 8;
-        }
-        if self.seed == 0 {
-            self.seed = 7;
-        }
-        if self.prompt.is_empty() {
-            self.prompt = "Uplifting melodic house, warm bass, wide chords and a clear lead".into();
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            prompt: "Uplifting melodic house, warm bass, wide chords and a clear lead".into(),
+            bars: 8,
+            seed: 7,
+            error: None,
         }
     }
 }
 
 pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Nav> {
-    state.defaults();
     let mut open = true;
     let mut nav = None;
     egui::Window::new("AI Composer")
@@ -45,7 +40,7 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
             ui.add(egui::Slider::new(&mut state.bars, 1..=16).text("Bars"));
             ui.add(egui::DragValue::new(&mut state.seed).prefix("Seed "));
             if let Some(error) = &state.error {
-                ui.colored_label(ui.visuals().error_fg_color, error);
+                ui.colored_label(ui.visuals().error_fg_color, error.as_str());
             }
             ui.horizontal(|ui| {
                 if ui.button("Generate arrangement").clicked() {
