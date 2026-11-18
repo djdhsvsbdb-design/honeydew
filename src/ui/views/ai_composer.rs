@@ -1,30 +1,30 @@
 //! The in-app prompt for creating a fresh multi-track arrangement.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 use std::io::{BufRead, BufReader, BufWriter, Write};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 use std::thread;
 use std::time::Duration;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use eframe::egui::{self, Id, TextEdit};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 use serde_json::{Value, json};
 
 use super::{AppCtx, Nav};
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 const MCP_SERVER: &str = include_str!("../../../tools/honeydew-mcp/server.py");
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 const MCP_COMPOSER: &str = include_str!("../../../tools/honeydew-mcp/composer.py");
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 struct ChildGuard(std::process::Child);
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         let _ = self.0.kill();
@@ -56,7 +56,7 @@ impl Default for State {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 fn read_rpc(reader: &mut BufReader<std::process::ChildStdout>) -> Result<Value, String> {
     let mut line = String::new();
     reader.read_line(&mut line).map_err(|e| format!("MCP read failed: {e}"))?;
@@ -66,7 +66,7 @@ fn read_rpc(reader: &mut BufReader<std::process::ChildStdout>) -> Result<Value, 
     serde_json::from_str(&line).map_err(|e| format!("Invalid MCP response: {e}"))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
 fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> Result<String, String> {
     if !api_key.trim().is_empty() && api_key.trim().len() < 12 {
         return Err("Groq API key looks incomplete.".into());
@@ -83,7 +83,7 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
         std::fs::write(&composer_path, MCP_COMPOSER)
             .map_err(|e| format!("Cannot write local AI producer: {e}"))?;
 
-        #[cfg(windows)]
+        #[cfg(all(windows, not(mobile), not(target_arch = "wasm32")))]
         let mut child = ChildGuard({
             let mut command = Command::new("python");
             command.arg(&server_path);
@@ -105,7 +105,7 @@ fn run_groq_producer(prompt: String, bars: u32, seed: u64, api_key: String) -> R
                 fallback.spawn()
             }).map_err(|e| format!("Python 3 is required to run the local AI producer: {e}"))?
         });
-        #[cfg(not(windows))]
+        #[cfg(all(not(windows), not(mobile), not(target_arch = "wasm32")))]
         let mut child = ChildGuard({
             let mut command = Command::new("python3");
             command.arg(&server_path).current_dir(&dir)
@@ -213,9 +213,9 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
                 let busy = state.worker.is_some();
                 if ui.add_enabled(!busy && app.settings.mcp_enabled,
                     egui::Button::new(if busy { "Producing…" } else { "Generate with Groq" })).clicked() {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
                     let key = state.groq_api_key.trim().to_owned();
-                    #[cfg(not(target_arch = "wasm32"))]
+                    #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
                     {
                         if key.is_empty() && std::env::var("GROQ_API_KEY").is_err() {
                             state.error = Some("Paste your Groq API key above or set GROQ_API_KEY before starting Honeydew.".into());
@@ -235,7 +235,7 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx) -> Option<Na
                             });
                         }
                     }
-                    #[cfg(target_arch = "wasm32")]
+                    #[cfg(any(target_arch = "wasm32", mobile))]
                     {
                         state.error = Some("Groq AI Composer is available in the desktop build only.".into());
                     }
