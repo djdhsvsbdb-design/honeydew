@@ -72,6 +72,11 @@ TOOLS = [
     },
 
     {
+        "name": "list_effect_catalog",
+        "description": "List exact names and normalized parameter metadata for all built-in audio effects. Use this before apply_sound_design.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
         "name": "list_effects",
         "description": "List built-in and existing VST/CLAP audio effects and their normalized parameters on an existing channel. Call get_song first. Plugin parameters are available when the plugin is loaded and its parameter metadata is present.",
         "inputSchema": {"type": "object", "properties": {"channel_id": {"type": "integer"}}, "required": ["channel_id"], "additionalProperties": False},
@@ -192,7 +197,7 @@ def handle(message):
         action = {"get_song": "song", "list_instruments": "instruments",
                   "get_instrument_params": "instrument_params",
                   "set_instrument_params": "set_instrument_params",
-                  "list_effects": "effects", "set_effect_params": "set_effect_params",
+                  "list_effect_catalog": "effect_catalog", "list_effect_catalog": "effect_catalog", "list_effects": "effects", "set_effect_params": "set_effect_params",
                   "apply_sound_design": "apply_sound_design", "apply_arrangement": "arrange"}.get(name)
         if action is None:
             return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
