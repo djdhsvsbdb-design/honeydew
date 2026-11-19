@@ -22,7 +22,7 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 4. **Action executor** — a serial queue of mouse move, click press/release, key press/release, wheel, and drag actions. Each action advances across frames, uses configurable pacing, and requests a fresh observation before the next decision.
 5. **Visible feedback** — drawn cursor/target marker and action/status text, with Pause, Resume, Stop, and cancel.
 6. **Manual mode guardrails** — never invoke bulk `arrange`/apply-arrangement while the agent is in manual mode; ask for confirmation before destructive project actions; keep the local control bridge loopback-only and authenticated.
-7. **FCC connection** — provider/model configuration and streaming chat transport must be implemented after the Free Claude Code API contract is verified. Do not assume endpoint, auth, or response format.
+7. **FCC connection** — FCC README confirms an OpenAI-compatible API at `http://127.0.0.1:8082/v1` (Chat Completions: `/chat/completions`) and model discovery at `/v1/models?view=messages`. Requests stream; the client must handle SSE. FCC proxy auth is optional, configured by the user. Endpoint/model/auth configuration must remain editable in Honeydew.
 
 ## Implementation stages
 
@@ -30,7 +30,7 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 - [ ] B. Serial UI action queue and egui event injection, with unit tests for press/release ordering and cancellation.
 - [ ] C. Structured project context bridge.
 - [ ] D. Window-only screenshot capture and visual context delivery (native desktop; validate capture API and privacy boundaries).
-- [ ] E. FCC/provider connection and streamed chat.
+- [ ] E. FCC/provider connection and streamed chat (FCC API contract confirmed: local OpenAI-compatible endpoint; model discovery and SSE streaming).
 - [ ] F. AI action/observation loop: observe, decide, execute one action, wait, observe, continue.
 - [ ] G. Manual beat workflow: navigate to drum/piano editor, add notes visibly one at a time, verify each, audition, refine.
 - [ ] H. Build, tests, and end-to-end manual QA on supported desktop OS.
@@ -46,4 +46,4 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 
 ## Status
 
-Architecture/source reconnaissance completed. No feature code, screenshot capture, AI provider connection, or native build verification has been completed yet.
+Architecture/source reconnaissance completed; FCC's API contract confirmed from its README. First documentation commit is on the feature branch. No feature code, screenshot capture, AI provider connection, or native build verification has been completed yet.
