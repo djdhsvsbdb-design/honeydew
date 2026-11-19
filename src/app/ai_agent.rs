@@ -77,7 +77,7 @@ impl AgentPanel {
                 egui::CollapsingHeader::new("Connection")
                     .default_open(false)
                     .show(ui, |ui| {
-                        ui.label("FCC endpoint (HTTP only)");
+                        ui.label("FCC endpoint (local HTTP only; no TLS)");
                         ui.text_edit_singleline(&mut self.endpoint);
                         ui.label("Model ID");
                         ui.text_edit_singleline(&mut self.model);
@@ -193,15 +193,16 @@ fn http_chat(endpoint: &str, model: &str, api_key: &str, system: &str, messages:
 
 fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
     let rest = url.strip_prefix("http://").ok_or("Only plain HTTP endpoints are supported; use the local FCC proxy")?;
-    let (authority, path) = match rest.split_once('/') {
-        Some((a, p)) => (a, format!("/{p}")),
-        None => (rest, "/".to_owned()),
+    let cut = rest.find(['/', '?']).unwrap_or(rest.len());
+    let authority = &rest[..cut];
+    let suffix = &rest[cut..];
+    let path = if suffix.is_empty() { "/".to_owned() } else if suffix.starts_with('?') { format!("/{suffix}") } else { suffix.to_owned() };
+    let (host, port) = match authority.split_once(':') {
+        Some((h, p)) => (h, p.parse::<u16>().map_err(|_| "Invalid endpoint port")?),
+        None => (authority, 80),
     };
-    let (host, port) = authority.split_once(':').map_or((authority, 80), |(h, p)| {
-        (h, p.parse::<u16>().unwrap_or(0))
-    });
-    if host.is_empty() || port == 0 || host.contains('@') || host.contains(' ') {
-        return Err("Invalid HTTP endpoint".into());
+    if !matches!(host, "127.0.0.1" | "localhost") || port == 0 || path.contains(' ') {
+        return Err("For security, FCC must use localhost or 127.0.0.1 over HTTP".into());
     }
     Ok((host.to_owned(), port, path))
 }
@@ -224,5 +225,41 @@ fn decode_chunked(bytes: &[u8]) -> Option<Vec<u8>> {
             return None;
         }
         cursor += 2;
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_chunked, parse_http_url};
+
+    #[test]
+    fn parses_local_fcc_endpoint() {
+        assert_eq!(
+            parse_http_url("http://127.0.0.1:8082/v1/chat/completions").unwrap(),
+            ("127.0.0.1".to_owned(), 8082, "/v1/chat/completions".to_owned())
+        );
+    }
+
+    #[test]
+    fn rejects_remote_http_hosts() {
+        assert!(parse_http_url("http://example.com/v1/chat/completions").is_err());
+        assert!(parse_http_url("https://127.0.0.1/v1/chat/completions").is_err());
+    }
+
+    #[test]
+    fn handles_query_only_endpoint_suffix() {
+        assert_eq!(
+            parse_http_url("http://localhost:8082?view=messages").unwrap().2,
+            "/?view=messages"
+        );
+    }
+
+    #[test]
+    fn decodes_chunked_response() {
+        assert_eq!(
+            decode_chunked(b"4\\r\\nWiki\\r\\n5\\r\\npedia\\r\\n0\\r\\n\\r\\n").unwrap(),
+            b"Wikipedia"
+        );
     }
 }
