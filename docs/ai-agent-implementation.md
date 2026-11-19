@@ -26,19 +26,16 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 
 ## Execution speed and interaction modes
 
-The agent should support three selectable execution modes, with Smart as the default:
+Interaction method is strictly visual and manual: screenshot of Honeydew → AI decision → one mouse/keyboard UI action → verify via screenshot. Do not use direct internal APIs, MCP actions, bulk note/arrangement edits, or data-level shortcuts to speed up the workflow.
 
-- **Fast:** minimize model round trips; use validated, scoped internal operations for non-visual edits where explicitly allowed, and run lightweight verification after grouped safe edits. Never use this mode to skip confirmations for destructive actions.
-- **Visual:** UI-driven actions. Do not add arbitrary fixed delays; wait for relevant UI state/response where detectable, then verify. If detection is unavailable, use a bounded settle interval and verify before continuing.
-- **Smart:** classify task/action risk and UI state. Use fast structured operations for safe/undoable edits; switch to visual interaction for UI navigation, dialogs, uncertain targets, plugins and tasks where user-visible actions are required.
-
-Latency goals are targets for future measurement, not current performance claims:
-- Avoid a separate AI request for every low-risk deterministic step by planning a short sequence and using local execution.
-- Reuse current screenshot/context only while it remains valid; invalidate it immediately after layout-changing actions.
-- Stop requesting screenshots for every safe edit in Fast mode; verify grouped edits at checkpoints.
-- Use streaming output and model selection/configuration to reduce perceived wait, if the local server/model supports it.
-- Keep all execution cancellable; Stop must prevent queued actions from continuing.
-- Keep screenshot privacy requirements: in-memory transient buffers only; no file, chat, or log persistence.
+Speed optimization must preserve this visual-only method:
+- Minimize model round trips by batching reasoning/planning locally, but execute UI actions one at a time.
+- Capture screenshots only when needed to establish context or verify meaningful UI state changes; never skip verification when target/state is uncertain.
+- Use adaptive, bounded wait for UI response instead of long fixed delays.
+- Stream model responses where supported.
+- Reuse a screenshot only while the UI has not changed in a way that invalidates it.
+- Keep Pause/Resume/Stop and human takeover responsive; Stop must halt further actions.
+- Temporary screenshot data stays in memory and must not be written to files, chat history, or logs.
 
 ## Full application capability coverage
 
