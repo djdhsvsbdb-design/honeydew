@@ -24,6 +24,22 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 6. **Manual mode guardrails** — never invoke bulk `arrange`/apply-arrangement while the agent is in manual mode; ask for confirmation before destructive project actions; keep the local control bridge loopback-only and authenticated.
 7. **FCC connection** — FCC README confirms an OpenAI-compatible API at `http://127.0.0.1:8082/v1` (Chat Completions: `/chat/completions`) and model discovery at `/v1/models?view=messages`. Requests stream; the client must handle SSE. FCC proxy auth is optional, configured by the user. Endpoint/model/auth configuration must remain editable in Honeydew.
 
+## Execution speed and interaction modes
+
+The agent should support three selectable execution modes, with Smart as the default:
+
+- **Fast:** minimize model round trips; use validated, scoped internal operations for non-visual edits where explicitly allowed, and run lightweight verification after grouped safe edits. Never use this mode to skip confirmations for destructive actions.
+- **Visual:** UI-driven actions. Do not add arbitrary fixed delays; wait for relevant UI state/response where detectable, then verify. If detection is unavailable, use a bounded settle interval and verify before continuing.
+- **Smart:** classify task/action risk and UI state. Use fast structured operations for safe/undoable edits; switch to visual interaction for UI navigation, dialogs, uncertain targets, plugins and tasks where user-visible actions are required.
+
+Latency goals are targets for future measurement, not current performance claims:
+- Avoid a separate AI request for every low-risk deterministic step by planning a short sequence and using local execution.
+- Reuse current screenshot/context only while it remains valid; invalidate it immediately after layout-changing actions.
+- Stop requesting screenshots for every safe edit in Fast mode; verify grouped edits at checkpoints.
+- Use streaming output and model selection/configuration to reduce perceived wait, if the local server/model supports it.
+- Keep all execution cancellable; Stop must prevent queued actions from continuing.
+- Keep screenshot privacy requirements: in-memory transient buffers only; no file, chat, or log persistence.
+
 ## Full application capability coverage
 
 The intended agent is not limited to a small fixed MCP action list. It should be able to reach the full Honeydew feature set through visible, sequential UI control, while using structured app context where available. The capability inventory must be maintained against the actual UI and feature modules; unsupported actions must be reported as unavailable rather than simulated or claimed completed.
