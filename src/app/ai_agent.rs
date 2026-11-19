@@ -140,9 +140,11 @@ impl AgentPanel {
         self.status = "Sending request…".into();
         ctx.request_repaint();
 
+        let worker_ctx = ctx.clone();
         thread::spawn(move || {
             let result = http_chat(&endpoint, &model, &key, &system, &messages);
             let _ = tx.send(result);
+            worker_ctx.request_repaint();
         });
     }
 }
@@ -164,7 +166,7 @@ fn http_chat(endpoint: &str, model: &str, api_key: &str, system: &str, messages:
     );
     stream.write_all(request.as_bytes()).map_err(|e| format!("Send failed: {e}"))?;
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).map_err(|e| format!("Read failed: {e}"))?;
+    stream.take(4 * 1024 * 1024 + 1).read_to_end(&mut response).map_err(|e| format!("Read failed: {e}"))?;
     if response.len() > 4 * 1024 * 1024 {
         return Err("Response exceeds 4 MiB limit".into());
     }
@@ -191,7 +193,10 @@ fn http_chat(endpoint: &str, model: &str, api_key: &str, system: &str, messages:
 
 fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
     let rest = url.strip_prefix("http://").ok_or("Only plain HTTP endpoints are supported; use the local FCC proxy")?;
-    let (authority, path) = rest.split_once('/').map_or((rest, "/"), |(a, p)| (a, format!("/{p}")));
+    let (authority, path) = match rest.split_once('/') {
+        Some((a, p)) => (a, format!("/{p}")),
+        None => (rest, "/".to_owned()),
+    };
     let (host, port) = authority.split_once(':').map_or((authority, 80), |(h, p)| {
         (h, p.parse::<u16>().unwrap_or(0))
     });
