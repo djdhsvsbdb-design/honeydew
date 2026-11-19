@@ -290,6 +290,32 @@ mod tests {
     use super::{decode_chunked, parse_http_url, parse_ui_action, UiAction};
 
     #[test]
+    fn parses_one_normalized_click_action() {
+        assert_eq!(
+            parse_ui_action(r#"{"action":"click","x":0.4,"y":0.7,"button":"left"}"#).unwrap(),
+            UiAction::Click { x: 0.4, y: 0.7, button: "left".into() }
+        );
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_click() {
+        assert!(parse_ui_action(r#"{"action":"click","x":1.2,"y":0.7,"button":"left"}"#).is_err());
+    }
+
+    #[test]
+    fn rejects_wait_over_limit() {
+        assert!(parse_ui_action(r#"{"action":"wait","milliseconds":6000}"#).is_err());
+    }
+
+    #[test]
+    fn parses_done_action() {
+        assert!(matches!(
+            parse_ui_action(r#"{"action":"done","summary":"Finished"}"#),
+            Ok(UiAction::Done { .. })
+        ));
+    }
+
+    #[test]
     fn parses_local_fcc_endpoint() {
         assert_eq!(
             parse_http_url("http://127.0.0.1:8082/v1/chat/completions").unwrap(),
