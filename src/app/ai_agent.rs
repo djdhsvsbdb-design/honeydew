@@ -144,7 +144,7 @@ impl AgentPanel {
             .max_width(520.0)
             .show_animated(ctx, self.open, |ui| {
                 ui.heading("AI Assistant");
-                ui.label("Local model · visual-agent protocol scaffold (actions not executed yet)");
+                ui.label("FCC-connected chat · visual actions are not executable yet");
                 ui.separator();
 
                 let mut refresh_models = false;
@@ -330,6 +330,10 @@ fn http_models(endpoint: &str, api_key: &str) -> Result<Vec<String>, String> {
         payload = decode_chunked(&payload).ok_or("Malformed chunked HTTP response")?;
     }
     let data: Value = serde_json::from_slice(&payload).map_err(|e| format!("Invalid FCC model catalog JSON: {e}"))?;
+    model_ids_from_catalog(&data)
+}
+
+fn model_ids_from_catalog(data: &Value) -> Result<Vec<String>, String> {
     let rows = data.get("data").and_then(Value::as_array)
         .ok_or("Unexpected FCC model catalog (expected data array)")?;
     let mut models: Vec<String> = rows.iter()
@@ -433,6 +437,27 @@ mod tests {
             parse_http_url("http://localhost:8082?view=messages").unwrap().2,
             "/?view=messages"
         );
+    }
+
+    #[test]
+    fn parses_and_deduplicates_fcc_model_catalog() {
+        let catalog = serde_json::json!({
+            "data": [
+                {"id": "provider/model-b"},
+                {"id": "provider/model-a"},
+                {"id": "provider/model-b"}
+            ]
+        });
+        assert_eq!(
+            super::model_ids_from_catalog(&catalog).unwrap(),
+            ["provider/model-a", "provider/model-b"]
+        );
+    }
+
+    #[test]
+    fn rejects_empty_fcc_model_catalog() {
+        let catalog = serde_json::json!({"data": []});
+        assert!(super::model_ids_from_catalog(&catalog).is_err());
     }
 
     #[test]
