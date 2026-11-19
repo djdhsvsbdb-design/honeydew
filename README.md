@@ -116,6 +116,14 @@ Also under SYNTH: Citrus, a six-operator FM synth; Lemon Drum Sampler, with 32 p
 - FL Studio Mobile will still opens projects that use plugins, just without the plugins. The web and Android versions keep other plugins' settings but don't play them.
 - Opening an FLP loads its plugins if you have them installed, and saving as FLP writes them back.
 
+### AI music generation with MIDI-GPT (experimental)
+
+A separate local helper can generate or complete multitrack MIDI with MIDI-GPT,
+then open the result in Honeydew through its existing MIDI importer. It is an
+optional Python tool, not a model embedded in the audio engine. See the
+[setup guide](tools/midigpt/README.md). The upstream pretrained weights are
+restricted to non-commercial research and education; see the guide before use.
+
 ### Local music-assistant control (experimental)
 
 The desktop build has an opt-in local control bridge for editing the open song
