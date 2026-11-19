@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn decodes_chunked_response() {
         assert_eq!(
-            decode_chunked(b"4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n")).unwrap(),
+            decode_chunked(b"4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n").unwrap(),
             b"Wikipedia"
         );
     }
