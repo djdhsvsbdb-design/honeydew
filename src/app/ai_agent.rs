@@ -1,5 +1,5 @@
-//! Honeydew AI agent integration foundation: local model connection, manual visual-agent
-//! action protocol, and validation. Screenshot capture/action execution are not implemented yet.
+//! Honeydew AI chat integration with FCC model discovery and a validated visual-agent protocol.
+//! Screenshot capture/action execution are not implemented yet.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -76,6 +76,8 @@ pub(crate) struct AgentPanel {
     input: String,
     messages: Vec<Message>,
     pending: Option<Receiver<Result<String, String>>>,
+    models: Vec<String>,
+    pending_models: Option<Receiver<Result<Vec<String>, String>>>,
     status: String,
 }
 
@@ -89,7 +91,9 @@ impl Default for AgentPanel {
             input: String::new(),
             messages: Vec::new(),
             pending: None,
-            status: "Configure FCC endpoint and model".into(),
+            models: Vec::new(),
+            pending_models: None,
+            status: "Configure FCC endpoint and load models".into(),
         }
     }
 }
@@ -103,6 +107,23 @@ impl AgentPanel {
         view: &str,
         selected_channel: usize,
     ) {
+        if let Some(rx) = self.pending_models.as_ref() {
+            if let Ok(result) = rx.try_recv() {
+                self.pending_models = None;
+                match result {
+                    Ok(models) => {
+                        let count = models.len();
+                        if self.model.is_empty() {
+                            if let Some(first) = models.first() { self.model = first.clone(); }
+                        }
+                        self.models = models;
+                        self.status = format!("Loaded {count} models from FCC");
+                    }
+                    Err(err) => self.status = err,
+                }
+            }
+        }
+
         if let Some(rx) = self.pending.as_ref() {
             if let Ok(result) = rx.try_recv() {
                 self.pending = None;
@@ -135,7 +156,20 @@ impl AgentPanel {
                         ui.text_edit_singleline(&mut self.model);
                         ui.label("API token (optional)");
                         ui.add(egui::TextEdit::singleline(&mut self.api_key).password(true));
+                        if ui.add_enabled(self.pending_models.is_none(), egui::Button::new(if self.pending_models.is_some() { "Loading…" } else { "Load models from FCC" })).clicked() {
+                            self.load_models(ctx);
+                        }
                     });
+
+                if !self.models.is_empty() {
+                    egui::ComboBox::from_label("Available FCC models")
+                        .selected_text(if self.model.is_empty() { "Select a model" } else { self.model.as_str() })
+                        .show_ui(ui, |ui| {
+                            for model in &self.models {
+                                ui.selectable_value(&mut self.model, model.clone(), model);
+                            }
+                        });
+                }
 
                 ui.horizontal(|ui| {
                     if ui.button("Clear chat").clicked() {
@@ -173,6 +207,22 @@ impl AgentPanel {
                     self.send(ctx, project, bpm, view, selected_channel);
                 }
             });
+    }
+
+    fn load_models(&mut self, ctx: &egui::Context) {
+        let endpoint = self.endpoint.clone();
+        let key = self.api_key.clone();
+        let (tx, rx) = mpsc::channel();
+        self.pending_models = Some(rx);
+        self.status = "Loading FCC model catalog…".into();
+        ctx.request_repaint();
+
+        let worker_ctx = ctx.clone();
+        thread::spawn(move || {
+            let result = http_models(&endpoint, &key);
+            let _ = tx.send(result);
+            worker_ctx.request_repaint();
+        });
     }
 
     fn send(&mut self, ctx: &egui::Context, project: &str, bpm: f64, view: &str, channel: usize) {
@@ -245,6 +295,50 @@ fn http_chat(endpoint: &str, model: &str, api_key: &str, system: &str, messages:
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or_else(|| "Unexpected response shape (expected choices[0].message.content)".into())
+}
+
+/// Read the OpenAI-compatible model catalog exposed by FCC at GET /v1/models.
+fn http_models(endpoint: &str, api_key: &str) -> Result<Vec<String>, String> {
+    let (host, port, _) = parse_http_url(endpoint)?;
+    let mut stream = TcpStream::connect((host.as_str(), port))
+        .map_err(|e| format!("Cannot connect to FCC: {e}"))?;
+    stream.set_read_timeout(Some(Duration::from_secs(20))).map_err(|e| e.to_string())?;
+    stream.set_write_timeout(Some(Duration::from_secs(10))).map_err(|e| e.to_string())?;
+    let auth = if api_key.is_empty() { String::new() } else { format!("Authorization: Bearer {api_key}\\r\\n") };
+    let request = format!(
+        "GET /v1/models HTTP/1.1\\r\\nHost: {host}:{port}\\r\\nAccept: application/json\\r\\n{auth}Connection: close\\r\\n\\r\\n"
+    );
+    stream.write_all(request.as_bytes()).map_err(|e| format!("Send failed: {e}"))?;
+    let mut response = Vec::new();
+    stream.take(2 * 1024 * 1024 + 1).read_to_end(&mut response).map_err(|e| format!("Read failed: {e}"))?;
+    if response.len() > 2 * 1024 * 1024 {
+        return Err("FCC model catalog exceeds 2 MiB".into());
+    }
+    let split = response.windows(4).position(|w| w == b"\\r\\n\\r\\n")
+        .ok_or("Invalid HTTP response")?;
+    let headers = String::from_utf8_lossy(&response[..split]).to_ascii_lowercase();
+    let status = headers.lines().next().unwrap_or("HTTP error");
+    if !status.contains(" 200 ") {
+        return Err(format!("FCC model catalog returned {status}"));
+    }
+    let mut payload = response[split + 4..].to_vec();
+    if headers.contains("transfer-encoding: chunked") {
+        payload = decode_chunked(&payload).ok_or("Malformed chunked HTTP response")?;
+    }
+    let data: Value = serde_json::from_slice(&payload).map_err(|e| format!("Invalid FCC model catalog JSON: {e}"))?;
+    let rows = data.get("data").and_then(Value::as_array)
+        .ok_or("Unexpected FCC model catalog (expected data array)")?;
+    let mut models: Vec<String> = rows.iter()
+        .filter_map(|row| row.get("id").and_then(Value::as_str).map(str::trim))
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .collect();
+    models.sort();
+    models.dedup();
+    if models.is_empty() {
+        return Err("FCC returned an empty model catalog".into());
+    }
+    Ok(models)
 }
 
 fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
