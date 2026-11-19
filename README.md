@@ -319,7 +319,7 @@ Honeydew's optional AI chat can connect to a separately running [Free Claude Cod
 
 **Upstream attribution:** Free Claude Code is copyright © 2026 **Ali Khokhar** (lead maintainer/owner); **Rahul Rai** is also listed as a project maintainer. The upstream project is licensed under **AGPL-3.0-only**. See the [FCC source repository](https://github.com/Alishahryar1/free-claude-code), its [maintainers](https://github.com/Alishahryar1/free-claude-code/blob/main/MAINTAINERS.md), and its [license](https://github.com/Alishahryar1/free-claude-code/blob/main/LICENSE).
 
-Honeydew currently sends non-streaming requests to `POST /v1/chat/completions` at the local FCC endpoint (default `http://127.0.0.1:8082`). The visual action protocol is only a scaffold: screenshot capture, mouse/keyboard execution, and screenshot-based verification are not yet connected. Do not treat proposed actions as executed.
+Honeydew currently sends non-streaming requests to `POST /v1/chat/completions` at the local FCC endpoint (default `http://127.0.0.1:8082`). The Connection panel can load available model IDs from `GET /v1/models` and select one for chat. The visual action protocol is only a scaffold: screenshot capture, mouse/keyboard execution, and screenshot-based verification are not yet connected. Do not treat proposed actions as executed.
 
 ### Code from Lemon Studio
 
