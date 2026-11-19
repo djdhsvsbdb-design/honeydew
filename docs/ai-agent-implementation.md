@@ -24,14 +24,45 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 6. **Manual mode guardrails** — never invoke bulk `arrange`/apply-arrangement while the agent is in manual mode; ask for confirmation before destructive project actions; keep the local control bridge loopback-only and authenticated.
 7. **FCC connection** — FCC README confirms an OpenAI-compatible API at `http://127.0.0.1:8082/v1` (Chat Completions: `/chat/completions`) and model discovery at `/v1/models?view=messages`. Requests stream; the client must handle SSE. FCC proxy auth is optional, configured by the user. Endpoint/model/auth configuration must remain editable in Honeydew.
 
+## Full application capability coverage
+
+The intended agent is not limited to a small fixed MCP action list. It should be able to reach the full Honeydew feature set through visible, sequential UI control, while using structured app context where available. The capability inventory must be maintained against the actual UI and feature modules; unsupported actions must be reported as unavailable rather than simulated or claimed completed.
+
+Capability groups to cover and verify:
+
+- Project lifecycle: create/open/save/save-as, project versions, export, import MIDI, project metadata.
+- Timeline/playlist: tracks/channels, clips, sections, arrangement navigation and playback controls.
+- Note and rhythm editing: piano roll, drum/step editor, note add/move/resize/delete, velocity and note properties.
+- Instruments and sound: built-in synths, drum kits, samplers, sample selection/import, SoundFont, presets, instrument building.
+- Rack and plugins: add/remove/reorder modules, plugin browser and supported plugin editors.
+- Mixer and audio: channel levels/pan, routing, sends, master, meters and playback/recording controls.
+- Automation: create/edit automation lanes and points, link controls, MIDI CC-related settings.
+- Audio clips/editing: clip selection, waveform editor, sample replacement and related operations.
+- Settings/preferences: application and input/output settings, keyboard/MIDI setup, themes and other visible preferences.
+- Help, credits and app information: navigation and accessible dialogs.
+
+## Access strategy and action protocol
+
+- Discover current capabilities at runtime rather than hard-code an assumed complete list.
+- Use the UI as the compatibility path for every feature, including dialogs and plugin interfaces.
+- Each agent gesture is serialized: observe, perform exactly one UI action, wait for the UI to settle, observe again, and verify the result.
+- Provide Pause, Resume, Stop, cancellation, visible cursor/target feedback and a human takeover mode.
+- Structured internal APIs may assist context or narrowly scoped operations, but must not silently bypass the visible manual workflow or invoke bulk arrangement when manual mode is active.
+- Require confirmation for destructive actions such as deleting tracks, overwriting projects, replacing samples, or changing global device configuration.
+- Maintain an honest capability/status list: mark a feature unavailable if the agent cannot currently navigate or verify it; never report an action as completed without evidence.
+
+## Acceptance criteria for “all app functions”
+
+“All functions” is a coverage goal, not a claim that every Honeydew operation is already implemented. Before declaring full coverage, each feature group above must have a mapped UI route/action sequence, test cases (including cancel/failure paths), and verification criteria. Plugin windows and platform-specific dialogs may need separate support and can remain explicitly unsupported until tested.
+
 ## Implementation stages
 
 - [x] A (partial): opt-in AI chat side panel and state/status UI, hidden by default.
-- [ ] B. Serial UI action queue and egui event injection, with unit tests for press/release ordering and cancellation.
+- [ ] B. Serial UI action queue and egui event injection, with unit tests for press/release ordering and cancellation. This is the foundation for broad feature coverage.
 - [x] C (partial): chat receives current tempo, active view, and selected channel index.
 - [ ] D. Window-only screenshot capture and visual context delivery (native desktop; validate capture API, explicit opt-in, transient buffers, and post-response cleanup).
 - [x] E (partial): local FCC chat via OpenAI-compatible `/v1/chat/completions` endpoint, asynchronous thread request, configurable model and optional token. Streaming/model discovery are not implemented.
-- [ ] F. AI action/observation loop: observe, decide, execute one action, wait, observe, continue.
+- [ ] F. AI action/observation loop with runtime capability discovery: observe, decide, execute one action, wait, observe, continue. Use the full capability inventory above and keep a verified coverage matrix.
 - [ ] G. Manual beat workflow: navigate to drum/piano editor, add notes visibly one at a time, verify each, audition, refine.
 - [ ] H. Build, tests, and end-to-end manual QA on supported desktop OS.
 
