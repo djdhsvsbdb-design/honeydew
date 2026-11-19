@@ -26,11 +26,11 @@ An opt-in AI assistant that observes the active Honeydew project and visible UI,
 
 ## Implementation stages
 
-- [ ] A. UI panel and agent state (inactive by default; Pause/Stop controls).
+- [x] A (partial): opt-in AI chat side panel and state/status UI, hidden by default.
 - [ ] B. Serial UI action queue and egui event injection, with unit tests for press/release ordering and cancellation.
-- [ ] C. Structured project context bridge.
+- [x] C (partial): chat receives current tempo, active view, and selected channel index.
 - [ ] D. Window-only screenshot capture and visual context delivery (native desktop; validate capture API and privacy boundaries).
-- [ ] E. FCC/provider connection and streamed chat (FCC API contract confirmed: local OpenAI-compatible endpoint; model discovery and SSE streaming).
+- [x] E (partial): local FCC chat via OpenAI-compatible `/v1/chat/completions` endpoint, asynchronous thread request, configurable model and optional token. Streaming/model discovery are not implemented.
 - [ ] F. AI action/observation loop: observe, decide, execute one action, wait, observe, continue.
 - [ ] G. Manual beat workflow: navigate to drum/piano editor, add notes visibly one at a time, verify each, audition, refine.
 - [ ] H. Build, tests, and end-to-end manual QA on supported desktop OS.
