@@ -1,5 +1,5 @@
-//! A small opt-in local AI chat panel. This first integration connects to FCC's local
-//! OpenAI-compatible HTTP endpoint; it does not yet drive DAW UI gestures or capture screenshots.
+//! Honeydew AI agent integration foundation: local model connection, manual visual-agent
+//! action protocol, and validation. Screenshot capture/action execution are not implemented yet.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -8,7 +8,56 @@ use std::thread;
 use std::time::Duration;
 
 use eframe::egui;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+
+/// One proposed visual UI action. Coordinates are normalized to the screenshot dimensions.
+/// This protocol is deliberately single-step: capture/execute/verify must happen between steps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum UiAction {
+    Click { x: f32, y: f32, button: String },
+    Move { x: f32, y: f32 },
+    Key { key: String },
+    TypeText { text: String },
+    Wait { milliseconds: u64 },
+    Done { summary: String },
+}
+
+fn parse_ui_action(text: &str) -> Result<UiAction, String> {
+    let trimmed = text.trim();
+    let candidate = if trimmed.starts_with("```") {
+        trimmed.trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```").trim()
+    } else {
+        trimmed
+    };
+    let action: UiAction = serde_json::from_str(candidate).map_err(|e| format!("Expected one UI-action JSON object: {e}"))?;
+    match &action {
+        UiAction::Click { x, y, button } | UiAction::Move { x, y } => {
+            if !x.is_finite() || !y.is_finite() || !(0.0..=1.0).contains(x) || !(0.0..=1.0).contains(y) {
+                return Err("Coordinates must be normalized between 0 and 1".into());
+            }
+            if let UiAction::Click { button, .. } = &action {
+                if !matches!(button.as_str(), "left" | "right" | "middle") {
+                    return Err("Unsupported mouse button".into());
+                }
+            }
+        }
+        UiAction::Key { key } => {
+            if key.is_empty() || key.len() > 32 { return Err("Key name must be 1–32 characters".into()); }
+        }
+        UiAction::TypeText { text } => {
+            if text.len() > 2000 { return Err("Text action exceeds 2000 bytes".into()); }
+        }
+        UiAction::Wait { milliseconds } => {
+            if *milliseconds > 5000 { return Err("Wait action is limited to 5000 ms".into()); }
+        }
+        UiAction::Done { summary } => {
+            if summary.len() > 500 { return Err("Summary exceeds 500 characters".into()); }
+        }
+    }
+    Ok(action)
+}
 
 #[derive(Clone)]
 struct Message {
@@ -71,7 +120,7 @@ impl AgentPanel {
             .max_width(520.0)
             .show_animated(ctx, self.open, |ui| {
                 ui.heading("AI Assistant");
-                ui.label("FCC local chat · not controlling DAW yet");
+                ui.label("Local model · visual-agent protocol scaffold (actions not executed yet)");
                 ui.separator();
 
                 egui::CollapsingHeader::new("Connection")
@@ -106,7 +155,7 @@ impl AgentPanel {
                     });
 
                 ui.separator();
-                ui.label("Project context is read-only in this initial chat.");
+                ui.label("Read-only context. Visual actions are protocol-only until screenshot capture and input executor are added.");
                 ui.label(format!("Project: {project} · Tempo: {bpm:.1} BPM"));
                 ui.label(format!("View: {view} · Channel: {}", selected_channel + 1));
                 ui.add(
@@ -130,7 +179,11 @@ impl AgentPanel {
             .map(|m| json!({"role": m.role, "content": m.text}))
             .collect();
         let system = format!(
-            "You are an assistant inside Honeydew, a digital audio workstation.             Help the user with music production and explain suggestions clearly.             Current read-only project context: project={project:?}, tempo={bpm:.1} BPM,             view={view:?}, selected channel index={channel}.             You cannot click controls, create notes, modify the project, or see screenshots.             Do not claim to have performed DAW actions."
+            "You are the visual UI agent inside Honeydew, a digital audio workstation. Help with music tasks.
+Current read-only context: project={project:?}, tempo={bpm:.1} BPM, view={view:?}, selected channel index={channel}.
+Visual-action protocol (not currently executable by the app): when asked to act, propose ONLY one next action as a JSON object:
+{"action":"click","x":0.0,"y":0.0,"button":"left"} or {"action":"move","x":0.0,"y":0.0} or {"action":"key","key":"Enter"} or {"action":"type_text","text":"..."} or {"action":"wait","milliseconds":300} or {"action":"done","summary":"..."}.
+Coordinates are normalized 0..1 relative to the Honeydew window screenshot. Never propose more than one action at a time. After every action, a screenshot must be captured and inspected before proposing the next action. Never claim an action was executed or verified; screenshot capture and input execution are not connected yet. Avoid destructive actions unless the user explicitly confirms."
         );
         let endpoint = self.endpoint.clone();
         let model = self.model.clone();
@@ -231,7 +284,7 @@ fn decode_chunked(bytes: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_chunked, parse_http_url};
+    use super::{decode_chunked, parse_http_url, parse_ui_action, UiAction};
 
     #[test]
     fn parses_local_fcc_endpoint() {
