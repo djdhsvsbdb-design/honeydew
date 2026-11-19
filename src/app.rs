@@ -37,6 +37,7 @@ use crate::ui::views::main_menu::{QUIT_TAG, quit_question};
 use crate::ui::views::{self, AppCtx, Nav, Navigation, Overlay, Slots, SongEdit, View};
 use crate::ui::{panel_resize, wheels};
 
+mod ai_agent;
 mod audio_edit;
 pub(crate) mod auto_record;
 pub(crate) mod automation;
@@ -288,6 +289,9 @@ pub struct HoneydewApp {
     importing: Option<file_drop::Importing>,
     #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
     control: Option<control::Bridge>,
+    /// Optional AI chat panel.
+    #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+    ai_agent: ai_agent::AgentPanel,
     /// `Install sound library…` running (`app/sounds.rs`).
     #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
     sounds: Option<crate::content::install::Job>,
@@ -372,6 +376,8 @@ impl Default for HoneydewApp {
             importing: None,
             #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
             control: None,
+            #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+            ai_agent: ai_agent::AgentPanel::default(),
             #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
             sounds: None,
         }
@@ -2265,6 +2271,20 @@ impl HoneydewApp {
             self.settings.keyboard_kind(),
         );
         let chords = (!piano).then(|| self.chord_input(&chord_set, key_input.enabled));
+        // Optional AI chat panel, hidden until the user opens it.
+        #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+        {
+            egui::TopBottomPanel::top("honeydew_ai_toggle").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(if self.ai_agent.open { "Hide AI" } else { "AI Assistant" }).clicked() {
+                        self.ai_agent.open = !self.ai_agent.open;
+                    }
+                    ui.label("FCC local chat");
+                });
+            });
+            let current_view = format!("{:?}", self.nav.view);
+            self.ai_agent.show(ctx, "Current song", self.song.tempo_bpm, &current_view, self.selected_channel);
+        }
         let (mut actions, mut navs, overlay_navs, edit) = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(self.theme.colors.background.to_color32()))
             .show(ctx, |ui| {
