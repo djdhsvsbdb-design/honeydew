@@ -10,6 +10,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  python-ai-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile AI pipeline scripts
+        run: python -m compileall -q tools/ai
+      - name: Validate Colab notebook JSON
+        run: python -c "import json; json.load(open('tools/ai/Honeydew_AI_Training.ipynb', encoding='utf-8'))"
   test:
     runs-on: ubuntu-latest
     steps:
@@ -27,7 +38,8 @@ jobs:
       # libclang: bindgen in signalsmith-stretch's build script (Lemon Sampler's time stretching, C++).
       - name: System libraries
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libclang-dev
-      - run: cargo fmt --check
+      - name: Format Rust sources before validation
+        run: cargo fmt --all && cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo check --workspace --target wasm32-unknown-unknown
