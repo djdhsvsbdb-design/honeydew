@@ -89,7 +89,7 @@ impl AgentPanel {
                     if ui.button("Clear chat").clicked() {
                         self.messages.clear();
                     }
-                    ui.label(if self.pending.is_some() { "Working…" } else { &self.status });
+                    ui.label(if self.pending.is_some() { "Working…" } else { self.status.as_str() });
                 });
                 ui.separator();
 
