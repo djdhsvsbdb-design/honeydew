@@ -33,14 +33,17 @@ fn parse_ui_action(text: &str) -> Result<UiAction, String> {
     };
     let action: UiAction = serde_json::from_str(candidate).map_err(|e| format!("Expected one UI-action JSON object: {e}"))?;
     match &action {
-        UiAction::Click { x, y, button } | UiAction::Move { x, y } => {
+        UiAction::Click { x, y, button } => {
             if !x.is_finite() || !y.is_finite() || !(0.0..=1.0).contains(x) || !(0.0..=1.0).contains(y) {
                 return Err("Coordinates must be normalized between 0 and 1".into());
             }
-            if let UiAction::Click { button, .. } = &action {
-                if !matches!(button.as_str(), "left" | "right" | "middle") {
-                    return Err("Unsupported mouse button".into());
-                }
+            if !matches!(button.as_str(), "left" | "right" | "middle") {
+                return Err("Unsupported mouse button".into());
+            }
+        }
+        UiAction::Move { x, y } => {
+            if !x.is_finite() || !y.is_finite() || !(0.0..=1.0).contains(x) || !(0.0..=1.0).contains(y) {
+                return Err("Coordinates must be normalized between 0 and 1".into());
             }
         }
         UiAction::Key { key } => {
@@ -182,7 +185,7 @@ impl AgentPanel {
             "You are the visual UI agent inside Honeydew, a digital audio workstation. Help with music tasks.
 Current read-only context: project={project:?}, tempo={bpm:.1} BPM, view={view:?}, selected channel index={channel}.
 Visual-action protocol (not currently executable by the app): when asked to act, propose ONLY one next action as a JSON object:
-{"action":"click","x":0.0,"y":0.0,"button":"left"} or {"action":"move","x":0.0,"y":0.0} or {"action":"key","key":"Enter"} or {"action":"type_text","text":"..."} or {"action":"wait","milliseconds":300} or {"action":"done","summary":"..."}.
+{{"action":"click","x":0.0,"y":0.0,"button":"left"}} or {{"action":"move","x":0.0,"y":0.0}} or {{"action":"key","key":"Enter"}} or {{"action":"type_text","text":"..."}} or {{"action":"wait","milliseconds":300}} or {{"action":"done","summary":"..."}}.
 Coordinates are normalized 0..1 relative to the Honeydew window screenshot. Never propose more than one action at a time. After every action, a screenshot must be captured and inspected before proposing the next action. Never claim an action was executed or verified; screenshot capture and input execution are not connected yet. Avoid destructive actions unless the user explicitly confirms."
         );
         let endpoint = self.endpoint.clone();
