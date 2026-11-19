@@ -147,6 +147,7 @@ impl AgentPanel {
                 ui.label("Local model · visual-agent protocol scaffold (actions not executed yet)");
                 ui.separator();
 
+                let mut refresh_models = false;
                 egui::CollapsingHeader::new("Connection")
                     .default_open(false)
                     .show(ui, |ui| {
@@ -157,9 +158,12 @@ impl AgentPanel {
                         ui.label("API token (optional)");
                         ui.add(egui::TextEdit::singleline(&mut self.api_key).password(true));
                         if ui.add_enabled(self.pending_models.is_none(), egui::Button::new(if self.pending_models.is_some() { "Loading…" } else { "Load models from FCC" })).clicked() {
-                            self.load_models(ctx);
+                            refresh_models = true;
                         }
                     });
+                if refresh_models {
+                    self.load_models(ctx);
+                }
 
                 if !self.models.is_empty() {
                     egui::ComboBox::from_label("Available FCC models")
@@ -304,9 +308,9 @@ fn http_models(endpoint: &str, api_key: &str) -> Result<Vec<String>, String> {
         .map_err(|e| format!("Cannot connect to FCC: {e}"))?;
     stream.set_read_timeout(Some(Duration::from_secs(20))).map_err(|e| e.to_string())?;
     stream.set_write_timeout(Some(Duration::from_secs(10))).map_err(|e| e.to_string())?;
-    let auth = if api_key.is_empty() { String::new() } else { format!("Authorization: Bearer {api_key}\\r\\n") };
+    let auth = if api_key.is_empty() { String::new() } else { format!("Authorization: Bearer {api_key}\r\n") };
     let request = format!(
-        "GET /v1/models HTTP/1.1\\r\\nHost: {host}:{port}\\r\\nAccept: application/json\\r\\n{auth}Connection: close\\r\\n\\r\\n"
+        "GET /v1/models HTTP/1.1\r\nHost: {host}:{port}\r\nAccept: application/json\r\n{auth}Connection: close\r\n\r\n"
     );
     stream.write_all(request.as_bytes()).map_err(|e| format!("Send failed: {e}"))?;
     let mut response = Vec::new();
@@ -314,7 +318,7 @@ fn http_models(endpoint: &str, api_key: &str) -> Result<Vec<String>, String> {
     if response.len() > 2 * 1024 * 1024 {
         return Err("FCC model catalog exceeds 2 MiB".into());
     }
-    let split = response.windows(4).position(|w| w == b"\\r\\n\\r\\n")
+    let split = response.windows(4).position(|w| w == b"\r\n\r\n")
         .ok_or("Invalid HTTP response")?;
     let headers = String::from_utf8_lossy(&response[..split]).to_ascii_lowercase();
     let status = headers.lines().next().unwrap_or("HTTP error");
