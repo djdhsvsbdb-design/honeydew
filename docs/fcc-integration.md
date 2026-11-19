@@ -13,9 +13,13 @@ Honeydew currently connects to FCC as an external local service. This integratio
 - Authentication: optional bearer token, matching FCC's Proxy Authentication setting.
 - Transport: loopback HTTP only; the current client rejects remote hosts and HTTPS.
 - Response: non-streaming `choices[0].message.content`.
-- FCC's model inventory endpoint is `GET /v1/models`; model discovery is not yet wired into the Honeydew panel.
+- FCC's model inventory endpoint is `GET /v1/models`. Honeydew can now load this catalog, select a returned model ID, and use it for chat. The request is authenticated with the same optional bearer token and remains restricted to loopback HTTP.
 
 FCC itself also exposes other APIs, including Anthropic Messages, OpenAI Responses, and Gemini. Honeydew currently uses only Chat Completions.
+
+## Model discovery
+
+The Connection section includes **Load models from FCC**. It sends `GET /v1/models`, parses the OpenAI-compatible `data[].id` list, removes duplicate IDs, and displays the results in a model selector. An empty or malformed catalog is reported as a connection error. The model catalog request uses the same loopback-only HTTP endpoint and optional bearer token as chat.
 
 ## Visual-agent boundary
 
@@ -33,10 +37,9 @@ Pause, resume, stop, and human takeover must remain available. Destructive opera
 
 ## Next implementation steps
 
-1. Add FCC model discovery through `GET /v1/models`.
-2. Replace the hand-written HTTP/1.1 client with a maintained HTTP client that supports local FCC endpoints robustly, while preserving loopback-only restrictions.
-3. Add a non-streaming multimodal request path for screenshots, gated by consent and transient handling.
-4. Implement a single-action executor and screenshot verification loop behind an explicit desktop-only capability gate.
-5. Add tests for endpoint validation, API response parsing, action validation, cancellation, and screenshot lifecycle.
-6. Keep the visual agent disabled on web/mobile until equivalent safe capture and input facilities exist.
+1. Replace the hand-written HTTP/1.1 client with a maintained HTTP client that supports local FCC endpoints robustly, while preserving loopback-only restrictions.
+2. Add a non-streaming multimodal request path for screenshots, gated by consent and transient handling.
+3. Implement a single-action executor and screenshot verification loop behind an explicit desktop-only capability gate.
+4. Add tests for endpoint validation, API response parsing, action validation, cancellation, and screenshot lifecycle.
+5. Keep the visual agent disabled on web/mobile until equivalent safe capture and input facilities exist.
 
