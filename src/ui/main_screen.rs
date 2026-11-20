@@ -454,6 +454,12 @@ impl Regions {
 pub struct MainScreen {
     /// Toggled by the play button; the app sends `Play` / `Stop` when it changes.
     pub playing: bool,
+    /// Whether Bear AI's chat window is open.
+    bear_open: bool,
+    /// Draft prompt in Bear AI's chat.
+    bear_input: String,
+    /// Latest local planning result shown in the chat.
+    bear_reply: Option<super::beat_bear::Reply>,
     /// The keyboard panel's height in points as last drawn, on its way to the preferred height ([`Self::panel_h`]);
     /// `None` before the first frame.
     pub(crate) panel: Option<f32>,
@@ -551,6 +557,72 @@ struct HeaderHold {
 }
 
 impl MainScreen {
+    /// Draw Bear AI's chat on the playlist screen. The local planner turns the prompt into a typed
+    /// brief; the response is explicit about what it understood rather than claiming to be a cloud LLM.
+    pub(crate) fn bear_chat(&mut self, ctx: &egui::Context) {
+        let screen = ctx.content_rect();
+        egui::Area::new(Id::new("bear_ai_launcher"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(pos2(screen.right() - 112.0, screen.top() + 12.0))
+            .show(ctx, |ui| {
+                if ui.button("🐻 Мишка AI").clicked() {
+                    self.bear_open = !self.bear_open;
+                }
+            });
+
+        if !self.bear_open {
+            return;
+        }
+
+        let mut open = self.bear_open;
+        egui::Window::new("🐻 Мишка AI")
+            .id(Id::new("bear_ai_chat"))
+            .open(&mut open)
+            .default_width(340.0)
+            .default_height(390.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.label("Опиши музыку обычными словами. Я подготовлю задание для генератора.");
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .max_height(220.0)
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        ui.label("Мишка: Привет! Например: «Мрачный trap, 140 BPM, 8 тактов».");
+                        if let Some(reply) = &self.bear_reply {
+                            ui.separator();
+                            ui.label(format!("Ты: {}", self.bear_input));
+                            ui.label(format!("Мишка: {}", reply.message));
+                            ui.weak("План генерации");
+                            ui.label(format!(
+                                "Жанр: {:?} · Настроение: {:?} · {} BPM · {} тактов",
+                                reply.task.style,
+                                reply.task.mood,
+                                reply.task.bpm.map_or_else(|| "темп проекта".to_owned(), |v| v.to_string()),
+                                reply.task.bars
+                            ));
+                        }
+                    });
+
+                ui.separator();
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut self.bear_input)
+                        .hint_text("Например: сделай lo-fi на 85 BPM")
+                        .desired_width(f32::INFINITY),
+                );
+                let send = ui.button("Обдумать запрос").clicked()
+                    || (response.lost_focus()
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                if send && !self.bear_input.trim().is_empty() {
+                    self.bear_reply = Some(super::beat_bear::think(&self.bear_input));
+                }
+                if self.bear_reply.is_some() {
+                    ui.weak("Это локальный помощник: он разбирает параметры запроса, но пока не создаёт партии сам.");
+                }
+            });
+        self.bear_open = open;
+    }
     /// The transport `RAM` readout's last value (`NNN MB`; `--` where the platform does not report it; empty before the
     /// first read).
     pub fn ram_text(&self) -> &str {
