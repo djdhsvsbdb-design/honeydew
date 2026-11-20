@@ -88,7 +88,7 @@ impl Panel {
     pub(crate) fn new(seed: u64) -> Self {
         Self {
             preset: 0,
-            bars: 1,
+            bars: 2,
             lead: 0,
             seed: seed % SEEDS,
             key: 0,
