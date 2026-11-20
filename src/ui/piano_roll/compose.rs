@@ -517,12 +517,20 @@ mod tests {
         };
         let short_out = generate(&short, (0, C_MAJOR), &[], 4.0);
         let long_out = generate(&long, (0, C_MAJOR), &[], 4.0);
-        let max_len = |events: &[Event]| events.iter().filter_map(|e| match e {
-            Event::Note { len_beats, .. } => Some(*len_beats),
-            _ => None,
-        }).fold(0.0, f64::max);
+        let max_len = |events: &[Event]| {
+            events
+                .iter()
+                .filter_map(|e| match e {
+                    Event::Note { len_beats, .. } => Some(*len_beats),
+                    _ => None,
+                })
+                .fold(0.0, f64::max)
+        };
         assert!(max_len(&short_out) <= 0.25, "short setting: {:?}", short_out);
-        assert!(max_len(&long_out) > max_len(&short_out), "long setting should lengthen notes");
+        assert!(
+            max_len(&long_out) > max_len(&short_out),
+            "long setting should lengthen notes"
+        );
     }
 
     #[test]
