@@ -84,7 +84,7 @@ pub(crate) enum Close {
 }
 
 impl Panel {
-    /// Pop, 2 bars, the chords leading, on seed `seed` (kept to 0..100 000).
+    /// Pop, 4 bars, the chords leading, on seed `seed` (kept to 0..100 000).
     pub(crate) fn new(seed: u64) -> Self {
         Self {
             preset: 0,
