@@ -32,6 +32,19 @@ impl State {
             (self.rolls.entry(channel)).or_insert_with(|| PianoRoll::for_channel(song, channel));
         roll.open_generate(ctx);
     }
+
+    /// Opens the generator with the settings extracted by AI Assistant.
+    pub(crate) fn open_generate_with_brief(
+        &mut self,
+        ctx: &egui::Context,
+        song: &Song,
+        channel: usize,
+        brief: &crate::ui::beat_bear::BeatBrief,
+    ) {
+        let roll =
+            (self.rolls.entry(channel)).or_insert_with(|| PianoRoll::for_channel(song, channel));
+        roll.open_generate_with_brief(ctx, brief);
+    }
 }
 
 /// Draws the piano roll of `channel`'s note lane in `app.regions.editor`; back to the playlist once the channel is gone
