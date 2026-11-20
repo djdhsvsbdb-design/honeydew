@@ -559,13 +559,18 @@ struct HeaderHold {
 impl MainScreen {
     /// Draw Bear AI's chat on the playlist screen. The local planner turns the prompt into a typed
     /// brief; the response is explicit about what it understood rather than claiming to be a cloud LLM.
-    pub(crate) fn bear_chat(&mut self, ctx: &egui::Context) {
+    pub(crate) fn bear_chat(
+        &mut self,
+        ctx: &egui::Context,
+        can_send_to_generator: bool,
+    ) -> Option<super::beat_bear::BeatBrief> {
+        let mut task_to_send = None;
         let screen = ctx.content_rect();
         egui::Area::new(Id::new("bear_ai_launcher"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos2(screen.right() - 112.0, screen.top() + 12.0))
             .show(ctx, |ui| {
-                if ui.button("🐻 Мишка AI").clicked() {
+                if ui.button("AI Assistant").clicked() {
                     self.bear_open = !self.bear_open;
                 }
             });
@@ -575,7 +580,7 @@ impl MainScreen {
         }
 
         let mut open = self.bear_open;
-        egui::Window::new("🐻 Мишка AI")
+        egui::Window::new("AI Assistant")
             .id(Id::new("bear_ai_chat"))
             .open(&mut open)
             .default_width(340.0)
@@ -589,11 +594,11 @@ impl MainScreen {
                     .max_height(220.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
-                        ui.label("Мишка: Привет! Например: «Мрачный trap, 140 BPM, 8 тактов».");
+                        ui.label("AI: Привет! Например: «Мрачный trap, 140 BPM, 8 тактов».");
                         if let Some(reply) = &self.bear_reply {
                             ui.separator();
                             ui.label(format!("Ты: {}", self.bear_input));
-                            ui.label(format!("Мишка: {}", reply.message));
+                            ui.label(format!("AI: {}", reply.message));
                             ui.weak("План генерации");
                             ui.label(format!(
                                 "Жанр: {:?} · Настроение: {:?} · {} BPM · {} тактов",
@@ -602,6 +607,13 @@ impl MainScreen {
                                 reply.task.bpm.map_or_else(|| "темп проекта".to_owned(), |v| v.to_string()),
                                 reply.task.bars
                             ));
+                            if can_send_to_generator
+                                && ui.button("Передать задание в генератор").clicked()
+                            {
+                                task_to_send = Some(reply.task.clone());
+                            } else if !can_send_to_generator {
+                                ui.weak("Чтобы передать задание, открой Piano Roll выбранного клипа.");
+                            }
                         }
                     });
 
@@ -618,10 +630,11 @@ impl MainScreen {
                     self.bear_reply = Some(super::beat_bear::think(&self.bear_input));
                 }
                 if self.bear_reply.is_some() {
-                    ui.weak("Это локальный помощник: он разбирает параметры запроса, но пока не создаёт партии сам.");
+                    ui.weak("Локальный помощник формирует параметры для встроенного генератора нот.");
                 }
             });
         self.bear_open = open;
+        task_to_send
     }
     /// The transport `RAM` readout's last value (`NNN MB`; `--` where the platform does not report it; empty before the
     /// first read).
