@@ -502,6 +502,30 @@ mod tests {
     }
 
     #[test]
+    fn melody_note_lengths_follow_the_duration_setting() {
+        let short = Settings {
+            duration: 0.25,
+            rest: 0.0,
+            chords: 4,
+            ..settings(Preset::Pop, 1, 42, Lead::Chords)
+        };
+        let long = Settings {
+            duration: 1.0,
+            rest: 0.0,
+            chords: 4,
+            ..settings(Preset::Pop, 1, 42, Lead::Chords)
+        };
+        let short_out = generate(&short, (0, C_MAJOR), &[], 4.0);
+        let long_out = generate(&long, (0, C_MAJOR), &[], 4.0);
+        let max_len = |events: &[Event]| events.iter().filter_map(|e| match e {
+            Event::Note { len_beats, .. } => Some(*len_beats),
+            _ => None,
+        }).fold(0.0, f64::max);
+        assert!(max_len(&short_out) <= 0.25, "short setting: {:?}", short_out);
+        assert!(max_len(&long_out) > max_len(&short_out), "long setting should lengthen notes");
+    }
+
+    #[test]
     fn a_progression_is_the_presets_degrees_one_triad_a_bar_from_the_tonic() {
         let offs = offsets(C_MAJOR);
         // I–V–vi–IV: C major, G major, A minor, F major, a bar each, each in the inversion nearest the one before.
