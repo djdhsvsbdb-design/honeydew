@@ -6,6 +6,7 @@ use crate::metrics::Metrics;
 use crate::theme::Theme;
 
 pub mod add_channel_menu;
+pub mod beat_bear;
 pub mod buttons;
 pub mod clips;
 pub mod drum_grid;
