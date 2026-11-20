@@ -342,3 +342,13 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     label(ui, r, "Chords", text);
     panel.chords = dropdown(ui, r, "chords", &CHORD_MODES, panel.chords, None);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_panel_generates_four_bars() {
+        assert_eq!(BARS[Panel::new(0).bars], 4);
+    }
+}
