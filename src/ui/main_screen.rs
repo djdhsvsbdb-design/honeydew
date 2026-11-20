@@ -557,7 +557,7 @@ struct HeaderHold {
 }
 
 impl MainScreen {
-    /// Draw Bear AI's chat on the playlist screen. The local planner turns the prompt into a typed
+    /// Draw AI Assistant's chat on the playlist screen. The local planner turns the prompt into a typed
     /// brief; the response is explicit about what it understood rather than claiming to be a cloud LLM.
     pub(crate) fn bear_chat(
         &mut self,
@@ -630,7 +630,7 @@ impl MainScreen {
                     self.bear_reply = Some(super::beat_bear::think(&self.bear_input));
                 }
                 if self.bear_reply.is_some() {
-                    ui.weak("Локальный помощник формирует параметры для встроенного генератора нот.");
+                    ui.weak("В генератор передаются пресет и длина. BPM и отдельное включение партий пока не подключены.");
                 }
             });
         self.bear_open = open;
