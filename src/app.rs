@@ -2383,7 +2383,18 @@ impl HoneydewApp {
                     if top.height() > 0.0 {
                         focus::container(ui, keys(focus::PLAYLIST, !editor), top, |ui| {
                             self.main_screen.playlist(ui, &mut app, input, &mut actions);
-                            self.main_screen.bear_chat(ui.ctx());
+                            let can_send_to_generator = matches!(self.nav.view, View::PianoRoll(_));
+                            let beat_task = self
+                                .main_screen
+                                .bear_chat(ui.ctx(), can_send_to_generator);
+                            if let (Some(task), View::PianoRoll(channel)) = (beat_task, self.nav.view) {
+                                self.slots.piano_roll.open_generate_with_brief(
+                                    ui.ctx(),
+                                    app.song,
+                                    channel,
+                                    &task,
+                                );
+                            }
                         });
                     }
                     // The bottom editor shows the current track's current clip, and follows it: a tap, `Edit`, a double
