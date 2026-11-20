@@ -2383,6 +2383,7 @@ impl HoneydewApp {
                     if top.height() > 0.0 {
                         focus::container(ui, keys(focus::PLAYLIST, !editor), top, |ui| {
                             self.main_screen.playlist(ui, &mut app, input, &mut actions);
+                            self.main_screen.bear_chat(ui.ctx());
                         });
                     }
                     // The bottom editor shows the current track's current clip, and follows it: a tap, `Edit`, a double
