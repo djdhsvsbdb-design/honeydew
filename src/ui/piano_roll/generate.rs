@@ -85,6 +85,27 @@ pub(crate) enum Close {
 
 impl Panel {
     /// Pop, 4 bars, the chords leading, on seed `seed` (kept to 0..100 000).
+    /// Build generator settings from the local AI planner's structured brief.
+    pub(crate) fn from_brief(seed: u64, brief: &crate::ui::beat_bear::BeatBrief) -> Self {
+        use crate::ui::beat_bear::{Mood, Style};
+        let preset = match (brief.style, brief.mood) {
+            (_, Mood::Dark) => 1,
+            (_, Mood::Chill) => 2,
+            (_, Mood::Bright) => 0,
+            (_, Mood::Energetic) => 3,
+            (Style::LoFi, _) => 2,
+            (Style::Pop | Style::House, _) => 0,
+            (Style::Techno | Style::DrumAndBass, _) => 3,
+            (Style::Trap | Style::HipHop, _) => 1,
+            (Style::Default, _) => 0,
+        };
+        let bars = BARS.iter().position(|&bars| bars == brief.bars).unwrap_or(2);
+        let mut panel = Self::new(seed);
+        panel.preset = preset;
+        panel.bars = bars;
+        panel
+    }
+
     pub(crate) fn new(seed: u64) -> Self {
         Self {
             preset: 0,
