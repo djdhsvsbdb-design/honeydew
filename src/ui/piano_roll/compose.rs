@@ -369,8 +369,8 @@ fn melody(
                 let tones = [0, 2, 4];
                 i32::from(d) + tones[rng.below(tones.len())]
             } else {
-                let step = [-2, -1, 1, 2][rng.below(4)];
-                previous + step
+                let delta = [-2, -1, 1, 2][rng.below(4)];
+                previous + delta
             };
             previous = degree;
             // An octave up from the chords, and one up again when the line runs off the top of its range.
@@ -380,7 +380,7 @@ fn melody(
             } else {
                 key
             };
-            let len = (step * (0.5 + 0.25 * rng.unit())).min(bpb);
+            let len = (s.duration * (0.5 + 0.25 * rng.unit())).min(bpb);
             let velocity = 190 + rng.below(41) as u8;
             out.push(note(beat, len, key, velocity));
         }
