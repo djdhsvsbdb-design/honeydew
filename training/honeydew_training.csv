@@ -1,0 +1,21 @@
+text,genre,mood,energy,mode,instrument
+"Мрачный атмосферный техно трек, медленный и тяжёлый",Techno,dark,high,minor,synth
+"Сделай спокойный эмбиент с мягкими пэдами",Ambient,calm,low,minor,pad
+"Весёлый поп с ярким пианино",Pop,happy,medium,major,piano
+"Энергичный драм-н-бейс с мощным басом",DrumAndBass,energetic,high,minor,bass
+"Лёгкий хаус для летней вечеринки",House, uplifting,high,major,synth
+"Грустный меланхоличный хип-хоп",HipHop,sad,low,minor,bass
+"Агрессивный трэп с жёсткими ударными",Trap,aggressive,high,minor,drums
+"Кинематографичная музыка с напряжённой атмосферой",Cinematic,tense,medium,minor,strings
+"Позитивный рок с гитарой",Rock,happy,high,major,guitar
+"Мягкая электронная музыка для отдыха",Electronic,calm,low,major,pad
+"Dark techno with a heavy synth bass",Techno,dark,high,minor,bass
+"Dreamy ambient with soft pads",Ambient,calm,low,minor,pad
+"Bright upbeat pop with piano",Pop,happy,medium,major,piano
+"Fast energetic drum and bass",DrumAndBass,energetic,high,minor,drums
+"Uplifting house music for dancing",House,uplifting,high,major,synth
+"Sad mellow hip hop beat",HipHop,sad,low,minor,bass
+"Hard aggressive trap beat",Trap,aggressive,high,minor,drums
+"Tense cinematic orchestral score",Cinematic,tense,medium,minor,strings
+"Energetic rock song with electric guitar",Rock,energetic,high,major,guitar
+"Chill electronic track with warm pads",Electronic,calm,low,major,pad
