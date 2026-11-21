@@ -1,6 +1,64 @@
 //! Full-song arrangement templates. This is the first generation layer: it plans song sections
 //! in bars before MIDI/event generation and UI wiring are added.
 
+/// Musical hints extracted from a natural-language generation brief.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PromptProfile {
+    pub minor: Option<bool>,
+    pub tempo_bpm: Option<u16>,
+    pub energy: u8,
+    pub genre: Genre,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Genre {
+    Electronic,
+    House,
+    Techno,
+    DrumAndBass,
+    Trap,
+    HipHop,
+    Pop,
+    Rock,
+    Ambient,
+    Cinematic,
+    Unknown,
+}
+
+impl PromptProfile {
+    /// Lightweight offline interpretation. It deliberately extracts explicit musical constraints;
+    /// it does not claim to be a remote generative AI model.
+    pub fn parse(description: &str) -> Self {
+        let text = description.to_ascii_lowercase();
+        let minor = if ["minor", "dark", "sad", "melancholic", "мрач", "груст", "минор"]
+            .iter().any(|word| text.contains(word)) { Some(true) }
+        else if ["major", "happy", "bright", "uplifting", "весел", "мажор", "светл"]
+            .iter().any(|word| text.contains(word)) { Some(false) }
+        else { None };
+        let genre = if text.contains("drum and bass") || text.contains("dnb") || text.contains("драм-н-бейс") { Genre::DrumAndBass }
+        else if text.contains("house") || text.contains("хаус") { Genre::House }
+        else if text.contains("techno") || text.contains("техно") { Genre::Techno }
+        else if text.contains("trap") || text.contains("трэп") { Genre::Trap }
+        else if text.contains("hip-hop") || text.contains("hip hop") || text.contains("хип-хоп") { Genre::HipHop }
+        else if text.contains("rock") || text.contains("рок") { Genre::Rock }
+        else if text.contains("pop") || text.contains("поп") { Genre::Pop }
+        else if text.contains("ambient") || text.contains("эмбиент") { Genre::Ambient }
+        else if text.contains("cinematic") || text.contains("кинемат") { Genre::Cinematic }
+        else if text.contains("edm") || text.contains("electronic") || text.contains("электрон") { Genre::Electronic }
+        else { Genre::Unknown };
+        let energy = if ["aggressive", "energetic", " мощ", "энерг", "жестк", "интенсив"]
+            .iter().any(|word| text.contains(word.trim())) { 90 }
+        else if ["calm", "soft", "chill", "спокой", "мягк", "расслаб"]
+            .iter().any(|word| text.contains(word)) { 25 }
+        else { 60 };
+        let tempo_bpm = text.split(|ch: char| !ch.is_ascii_digit())
+            .filter(|part| !part.is_empty())
+            .filter_map(|part| part.parse::<u16>().ok())
+            .find(|bpm| (40..=220).contains(bpm));
+        Self { minor, tempo_bpm, energy, genre }
+    }
+}
+
 /// Length preset for a full arrangement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SongForm {
