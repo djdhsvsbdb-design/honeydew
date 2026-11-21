@@ -845,7 +845,7 @@ mod tests {
     #[test]
     fn generating_again_replaces_only_previous_ai_generated_channels() {
         let mut song = crate::song::Song::default();
-        let user_channel = song.insert_channel(song.channels.len(), crate::song::ChannelKind::Audio).unwrap();
+        let user_channel = song.insert_channel(song.channels.len(), crate::song::ChannelKind::AudioClip).unwrap();
         song.channels[user_channel].name = "My own track".to_owned();
         let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
         create_channels(&mut song, &structure, 0, false, LayerSelection::default(), 11);
