@@ -252,6 +252,17 @@ pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8, seed: 
                     });
                 }
             }
+            if !intro_or_outro && (u64::from(bar) + seed) % 8 == 7 && bpb >= 4 {
+                events.push(Event::Drum {
+                    pos: bar_tick + (bpb - 1) * PPQ + PPQ / 2,
+                    len_beats: 0.125,
+                    pad: 2,
+                    velocity: 185,
+                    pan: Event::DEFAULT_PAN,
+                    value: Event::DEFAULT_PITCH,
+                    repeat: 0,
+                });
+            }
         }
     }
     events.sort_by_key(Event::pos);
@@ -539,7 +550,7 @@ mod tests {
     fn generated_piano_chords_stay_in_the_selected_scale() {
         use crate::song::Event;
         let structure = SongStructure::build(SongForm::Compact);
-        let events = generate_piano_events(&structure, 2, false, 4);
+        let events = generate_piano_events(&structure, 2, false, 4, 0);
         let allowed = [2, 4, 6, 7, 9, 11, 1];
         assert!(events.iter().all(|event| match event {
             Event::Note { key, .. } => allowed.contains(&(key % 12)),
