@@ -82,9 +82,9 @@ pub(crate) struct Panel {
     bass: bool,
     piano: bool,
     melody: bool,
-    bass_synth: usize,
-    piano_synth: usize,
-    melody_synth: usize,
+    bass_instrument: usize,
+    piano_instrument: usize,
+    melody_instrument: usize,
 }
 
 /// How the panel closed.
@@ -115,9 +115,9 @@ impl Panel {
             bass: true,
             piano: true,
             melody: true,
-            bass_synth: 3,
-            piano_synth: 0,
-            melody_synth: 4,
+            bass_instrument: 3,
+            piano_instrument: 0,
+            melody_instrument: 4,
         }
     }
 
@@ -393,28 +393,51 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
             *selected = !*selected;
         }
     }
-    let synths: Vec<&str> = crate::song::SynthKind::ALL.iter().map(|kind| kind.label()).collect();
+    let instruments = instrument_choices();
+    let instrument_labels: Vec<&str> = instruments.iter().map(|(label, _)| label.as_str()).collect();
     let r = next(CHOICE);
-    label(ui, r, "Bass synth", text);
-    panel.bass_synth = dropdown(ui, r, "bass synth", &synths, panel.bass_synth, None);
+    label(ui, r, "Bass instrument", text);
+    panel.bass_instrument = dropdown(ui, r, "bass instrument", &instrument_labels, panel.bass_instrument, None);
     let r = next(CHOICE);
-    label(ui, r, "Piano synth", text);
-    panel.piano_synth = dropdown(ui, r, "piano synth", &synths, panel.piano_synth, None);
+    label(ui, r, "Piano instrument", text);
+    panel.piano_instrument = dropdown(ui, r, "piano instrument", &instrument_labels, panel.piano_instrument, None);
     let r = next(CHOICE);
-    label(ui, r, "Lead synth", text);
-    panel.melody_synth = dropdown(ui, r, "lead synth", &synths, panel.melody_synth, None);
+    label(ui, r, "Lead instrument", text);
+    panel.melody_instrument = dropdown(ui, r, "lead instrument", &instrument_labels, panel.melody_instrument, None);
+}
+
+pub(crate) fn instrument_choices() -> Vec<(String, crate::song::full_song::GeneratedInstrument)> {
+    use crate::ui::add_channel_menu::AddChannelPick;
+    crate::ui::add_channel_menu::add_channel_menu()
+        .into_iter()
+        .filter_map(|item| match item.id {
+            Some(AddChannelPick::Kind(crate::song::ChannelKind::Synth(synth))) => {
+                Some((item.label, crate::song::full_song::GeneratedInstrument::Synth(synth)))
+            }
+            Some(AddChannelPick::Plugin(uid)) => {
+                Some((item.label, crate::song::full_song::GeneratedInstrument::Plugin(uid)))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 impl Panel {
-    pub(crate) fn layer_selection(&self) -> crate::song::full_song::LayerSelection {
+    pub(crate) fn layer_selection(
+        &self,
+        instruments: &[(String, crate::song::full_song::GeneratedInstrument)],
+    ) -> crate::song::full_song::LayerSelection {
+        let pick = |index: usize, fallback| {
+            instruments.get(index).map(|(_, instrument)| *instrument).unwrap_or(fallback)
+        };
         crate::song::full_song::LayerSelection {
             drums: self.drums,
             bass: self.bass,
             piano: self.piano,
             melody: self.melody,
-            bass_synth: crate::song::SynthKind::ALL[self.bass_synth.min(crate::song::SynthKind::ALL.len() - 1)],
-            piano_synth: crate::song::SynthKind::ALL[self.piano_synth.min(crate::song::SynthKind::ALL.len() - 1)],
-            melody_synth: crate::song::SynthKind::ALL[self.melody_synth.min(crate::song::SynthKind::ALL.len() - 1)],
+            bass_instrument: pick(self.bass_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::TransistorBass)),
+            piano_instrument: pick(self.piano_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::MiniSynth)),
+            melody_instrument: pick(self.melody_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::SuperSaw)),
         }
     }
 }
