@@ -58,10 +58,10 @@ const LEADS: [&str; 2] = ["Chords", "Melody"];
 
 /// The panel's state: the preset, the bars, who leads and the seed, then the key, scale and register (0 following the
 /// project) and the rhythm: the note length, the rests, the arpeggios and which chords to write.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Panel {
-    /// Natural-language brief used to shape the generated arrangement.
-    description: String,
+    /// UTF-8 natural-language brief, kept inline so the panel remains Copy.
+    description: [u8; 256],
     preset: usize,
     bars: usize,
     /// 0: the chords lead; 1: the melody.
@@ -100,7 +100,7 @@ impl Panel {
     /// Pop, 2 bars, the chords leading, on seed `seed` (kept to 0..100 000).
     pub(crate) fn new(seed: u64) -> Self {
         Self {
-            description: String::new(),
+            description: [0; 256],
             preset: 0,
             bars: 1,
             lead: 0,
@@ -122,6 +122,12 @@ impl Panel {
             piano_instrument: 0,
             melody_instrument: 4,
         }
+    }
+
+    /// The natural-language brief currently entered in the panel.
+    pub(crate) fn description_text(&self) -> String {
+        let end = self.description.iter().position(|&byte| byte == 0).unwrap_or(self.description.len());
+        String::from_utf8_lossy(&self.description[..end]).into_owned()
     }
 
     /// What the rows say ([module docs](self)).
@@ -374,9 +380,14 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         pos2(r.left() + m.u(LABEL_W), r.top()),
         pos2(r.right(), r.bottom()),
     );
-    ui.put(prompt_rect, egui::TextEdit::singleline(&mut panel.description)
+    let mut description = panel.description_text();
+    ui.put(prompt_rect, egui::TextEdit::singleline(&mut description)
         .hint_text("e.g. dark melodic DnB, deep bass, energetic drop")
         .desired_width(prompt_rect.width()));
+    panel.description = [0; 256];
+    let bytes = description.as_bytes();
+    let len = bytes.len().min(panel.description.len() - 1);
+    panel.description[..len].copy_from_slice(&bytes[..len]);
     let r = next(CHOICE);
     label(ui, r, "Target", text);
     panel.target = dropdown(ui, r, "target", &TARGETS, panel.target, None);
