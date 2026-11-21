@@ -2389,7 +2389,18 @@ impl HoneydewApp {
                     // tap or `Select clip` re-targets it, after the playlist's frame. It collapses whenever the current
                     // track has no current clip.
                     let current = self.main_screen.clips.current_clip(&app);
-                    let followed = || current.and_then(|r| self.slots.follow(r.into(), app.song));
+                    let followed = || {
+                        current
+                            .and_then(|r| self.slots.follow(r.into(), app.song))
+                            .or_else(|| match self.nav.view {
+                                View::PianoRoll(channel)
+                                    if self.slots.piano_roll.generator_open(channel) =>
+                                {
+                                    Some(View::PianoRoll(channel))
+                                }
+                                _ => None,
+                            })
+                    };
                     match editor.then(followed) {
                         None => {}
                         // At once, so that no frame shows the editor's chrome (Undo, Preview) without it.
