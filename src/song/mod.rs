@@ -15,6 +15,7 @@ mod tempo;
 // Song sections (#80).
 mod section;
 // Full-song structure planning (initial generator foundation).
+pub mod ai_model;
 pub mod full_song;
 
 pub use channel::{Channel, ChannelParams};
