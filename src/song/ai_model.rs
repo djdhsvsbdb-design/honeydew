@@ -1,7 +1,7 @@
 //! Pure-Rust inference for Honeydew's small pitch-only NoteLM checkpoint.
 //!
 //! The checkpoint was trained as Embedding(128, 96) -> LSTM(96, 192) -> Linear(192, 128).
-//! Its raw little-endian f32 layout is documented by WEIGHT_SHAPES below. Timing, harmony,
+//! Its raw little-endian f32 layout follows the state-dict tensors in embedding, LSTM, then output-layer order. Timing, harmony,
 //! velocity and instrumentation remain the responsibility of the arrangement generator.
 
 const VOCAB: usize = 128;
@@ -31,13 +31,12 @@ pub fn load_model_weights() -> Option<Vec<u8>> {
     }
 }
 
-struct Weights<'a> {
+struct Weights {
     values: Vec<f32>,
-    _source: std::marker::PhantomData<&'a [u8]>,
 }
 
-impl<'a> Weights<'a> {
-    fn parse(bytes: &'a [u8]) -> Option<Self> {
+impl Weights {
+    fn parse(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != WEIGHT_BYTES {
             return None;
         }
@@ -48,10 +47,7 @@ impl<'a> Weights<'a> {
         if values.iter().any(|value| !value.is_finite()) {
             return None;
         }
-        Some(Self {
-            values,
-            _source: std::marker::PhantomData,
-        })
+        Some(Self { values })
     }
 }
 
@@ -164,6 +160,9 @@ pub fn generate_pitch_sequence(
             .iter()
             .map(|pitch| logits[usize::from(*pitch)])
             .fold(f32::NEG_INFINITY, f32::max);
+        if !max.is_finite() {
+            return None;
+        }
         let mut probabilities = Vec::with_capacity(allowed.len());
         let mut total = 0.0_f64;
         for &pitch in &allowed {
@@ -209,5 +208,16 @@ mod tests {
     fn weight_layout_matches_trained_checkpoint() {
         assert_eq!(WEIGHT_FLOATS, 259_712);
         assert_eq!(WEIGHT_BYTES, 1_038_848);
+    }
+
+    #[test]
+    fn inference_is_repeatable_and_stays_in_the_requested_scale() {
+        let weights = vec![0_u8; WEIGHT_BYTES];
+        let context = [72, 76, 79, 76, 74, 77, 81, 77];
+        let a = generate_pitch_sequence(&weights, &context, 24, 0, false, 1234).unwrap();
+        let b = generate_pitch_sequence(&weights, &context, 24, 0, false, 1234).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 24);
+        assert!(a.iter().all(|pitch| [0, 2, 4, 5, 7, 9, 11].contains(&((pitch - 60) % 12))));
     }
 }
