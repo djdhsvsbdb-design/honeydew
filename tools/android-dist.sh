@@ -41,6 +41,8 @@ rm -rf "$HONEYDEW_ANDROID_BUILD_DIR/assets/content" "$HONEYDEW_ANDROID_BUILD_DIR
 if [ -f assets/honeydew_note_lm.f32 ]; then
     mkdir -p "$HONEYDEW_ANDROID_BUILD_DIR/assets/models"
     cp assets/honeydew_note_lm.f32 "$HONEYDEW_ANDROID_BUILD_DIR/assets/models/honeydew_note_lm.f32"
+else
+    echo "NoteLM checkpoint missing at assets/honeydew_note_lm.f32; the generator will use its fallback melody." >&2
 fi
 export HONEYDEW_ANDROID_BASE=$base
 if [ -z "$base" ]; then
