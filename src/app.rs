@@ -4025,6 +4025,16 @@ mod tests {
     }
 
     #[test]
+    fn main_screen_generator_stays_open_without_a_current_clip() {
+        let mut rig = Rig::with_synth();
+        rig.click_id(egui::Id::new("main_screen_generate"));
+        assert_eq!(rig.app.nav.view, View::PianoRoll(1));
+        rig.frame(vec![]);
+        assert_eq!(rig.app.nav.view, View::PianoRoll(1));
+        assert!(rig.app.slots.piano_roll.generator_open(1));
+    }
+
+    #[test]
     fn a_replaced_song_clears_the_clip_selection_and_the_timeline_scroll() {
         let mut rig = Rig::with_drums_and_synth();
         rig.app.song.channels[1].lanes[0].add_clip(0, 16.0);
