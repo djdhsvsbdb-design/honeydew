@@ -36,7 +36,12 @@ export CARGO_TARGET_DIR=$(cd "${CARGO_TARGET_DIR:-target}" && pwd)
 export HONEYDEW_ANDROID_BUILD_DIR=$CARGO_TARGET_DIR/android
 export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-4}
 mkdir -p "$HONEYDEW_ANDROID_BUILD_DIR/assets" "$HONEYDEW_ANDROID_BUILD_DIR/jniLibs"
-rm -rf "$HONEYDEW_ANDROID_BUILD_DIR/assets/content"
+rm -rf "$HONEYDEW_ANDROID_BUILD_DIR/assets/content" "$HONEYDEW_ANDROID_BUILD_DIR/assets/models"
+# Bundle the trained NoteLM checkpoint when present. The generator has a deterministic fallback without it.
+if [ -f assets/honeydew_note_lm.f32 ]; then
+    mkdir -p "$HONEYDEW_ANDROID_BUILD_DIR/assets/models"
+    cp assets/honeydew_note_lm.f32 "$HONEYDEW_ANDROID_BUILD_DIR/assets/models/honeydew_note_lm.f32"
+fi
 export HONEYDEW_ANDROID_BASE=$base
 if [ -z "$base" ]; then
     cat sounds/honeydew-sounds.zip.[0-9][0-9][0-9] > "$HONEYDEW_ANDROID_BUILD_DIR/sounds.zip"
