@@ -529,11 +529,15 @@ impl Panel {
             ),
             piano_instrument: pick(
                 self.piano_instrument,
-                crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::MiniSynth),
+                crate::song::full_song::GeneratedInstrument::Synth(
+                    crate::song::SynthKind::MiniSynth,
+                ),
             ),
             melody_instrument: pick(
                 self.melody_instrument,
-                crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::SuperSaw),
+                crate::song::full_song::GeneratedInstrument::Synth(
+                    crate::song::SynthKind::SuperSaw,
+                ),
             ),
         }
     }
