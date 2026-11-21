@@ -67,6 +67,7 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx, channel: usi
     // And the graph lane tab's place (PR #87).
     roll.graph_tab_shift = app.settings.graph_tab_shift;
     let actions = roll.show(ui, app.regions.editor, &app.cx, app.song, &opts);
+    let mut nav = None;
     [app.settings.velocity_snap, app.settings.pan_snap] = roll.value_snap;
     app.settings.grid_size = roll.snap.size;
     app.settings.graph_tab_shift = roll.graph_tab_shift;
@@ -87,7 +88,12 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx, channel: usi
                 },
                 None => AudioCommand::NoteOff { channel, key },
             }),
+            PianoRollAction::FullSongGenerated { first_channel } => {
+                *app.selected = first_channel;
+                app.song_edited(true);
+                nav = Some(Nav::Show(View::Playlist));
+            }
         }
     }
-    None
+    nav
 }
