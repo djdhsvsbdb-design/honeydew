@@ -174,11 +174,22 @@ pub struct LayerSelection {
     pub bass: bool,
     pub piano: bool,
     pub melody: bool,
+    pub bass_synth: crate::song::SynthKind,
+    pub piano_synth: crate::song::SynthKind,
+    pub melody_synth: crate::song::SynthKind,
 }
 
 impl Default for LayerSelection {
     fn default() -> Self {
-        Self { drums: true, bass: true, piano: true, melody: true }
+        Self {
+            drums: true,
+            bass: true,
+            piano: true,
+            melody: true,
+            bass_synth: crate::song::SynthKind::TransistorBass,
+            piano_synth: crate::song::SynthKind::MiniSynth,
+            melody_synth: crate::song::SynthKind::SuperSaw,
+        }
     }
 }
 
@@ -377,7 +388,7 @@ pub fn create_channels(
     minor: bool,
     selection: LayerSelection,
 ) -> Vec<usize> {
-    use crate::song::{ChannelKind, SynthKind};
+    use crate::song::ChannelKind;
     let bpb = song.time_sig.bar_beats();
     let parts = generate_parts(structure, root, minor, bpb as u8);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
@@ -399,13 +410,13 @@ pub fn create_channels(
         add(ChannelKind::Drums, crate::song::LaneKind::Drums, parts.drums);
     }
     if selection.bass {
-        add(ChannelKind::Synth(SynthKind::TransistorBass), crate::song::LaneKind::Notes, parts.bass);
+        add(ChannelKind::Synth(selection.bass_synth), crate::song::LaneKind::Notes, parts.bass);
     }
     if selection.piano {
-        add(ChannelKind::Synth(SynthKind::MiniSynth), crate::song::LaneKind::Notes, parts.piano);
+        add(ChannelKind::Synth(selection.piano_synth), crate::song::LaneKind::Notes, parts.piano);
     }
     if selection.melody {
-        add(ChannelKind::Synth(SynthKind::SuperSaw), crate::song::LaneKind::Notes, parts.melody);
+        add(ChannelKind::Synth(selection.melody_synth), crate::song::LaneKind::Notes, parts.melody);
     }
     created
 }
