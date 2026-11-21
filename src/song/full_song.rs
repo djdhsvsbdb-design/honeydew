@@ -29,7 +29,7 @@ impl PromptProfile {
     /// Lightweight offline interpretation. It deliberately extracts explicit musical constraints;
     /// it does not claim to be a remote generative AI model.
     pub fn parse(description: &str) -> Self {
-        let text = description.to_ascii_lowercase();
+        let text = description.to_lowercase();
         let minor = if [
             "minor",
             "dark",
@@ -719,6 +719,10 @@ mod tests {
         assert_eq!(calm.genre, Genre::Ambient);
         assert_eq!(calm.minor, Some(false));
         assert_eq!(calm.energy, 25);
+        let russian = PromptProfile::parse("СПОКОЙНЫЙ светлый драм-н-бейс");
+        assert_eq!(russian.genre, Genre::DrumAndBass);
+        assert_eq!(russian.minor, Some(false));
+        assert_eq!(russian.energy, 25);
     }
 
     #[test]
