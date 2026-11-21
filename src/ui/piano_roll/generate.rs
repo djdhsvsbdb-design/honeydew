@@ -17,7 +17,7 @@
 use std::hash::{BuildHasher, RandomState};
 
 use eframe::egui::{
-    Align2, Area, Color32, Context, Id, LayerId, Order, Rect, ScrollArea, Sense, Ui, UiBuilder,
+    self, Align2, Area, Color32, Context, Id, LayerId, Order, Rect, ScrollArea, Sense, Ui, UiBuilder,
     pos2, scroll_area::ScrollBarVisibility, vec2,
 };
 
@@ -44,7 +44,7 @@ const LABEL_W: f32 = 4.5;
 /// As the Humanize panel's: three fit the 13 U row with their gaps.
 const BUTTON: [f32; 2] = [3.5, 1.0];
 /// The scrolling rows' height: three headers and eleven choice rows.
-const BODY: f32 = 4.0 * HEADER + 17.0 * CHOICE;
+const BODY: f32 = 4.0 * HEADER + 18.0 * CHOICE;
 /// The whole panel, when the screen has room.
 const HEIGHT: f32 = 2.0 * MARGIN + TITLE + BODY + MARGIN + CHOICE;
 /// Seeds run 0..SEEDS.
@@ -58,8 +58,10 @@ const LEADS: [&str; 2] = ["Chords", "Melody"];
 
 /// The panel's state: the preset, the bars, who leads and the seed, then the key, scale and register (0 following the
 /// project) and the rhythm: the note length, the rests, the arpeggios and which chords to write.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Panel {
+    /// Natural-language brief used to shape the generated arrangement.
+    description: String,
     preset: usize,
     bars: usize,
     /// 0: the chords lead; 1: the melody.
@@ -98,6 +100,7 @@ impl Panel {
     /// Pop, 2 bars, the chords leading, on seed `seed` (kept to 0..100 000).
     pub(crate) fn new(seed: u64) -> Self {
         Self {
+            description: String::new(),
             preset: 0,
             bars: 1,
             lead: 0,
@@ -365,6 +368,15 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     panel.chords = dropdown(ui, r, "chords", &CHORD_MODES, panel.chords, None);
 
     label(ui, next(HEADER), "Song generation", ink.gamma_multiply(DIM));
+    let r = next(CHOICE);
+    label(ui, r, "Describe your track", text);
+    let prompt_rect = Rect::from_min_max(
+        pos2(r.left() + m.u(LABEL_W), r.top()),
+        pos2(r.right(), r.bottom()),
+    );
+    ui.put(prompt_rect, egui::TextEdit::singleline(&mut panel.description)
+        .hint_text("e.g. dark melodic DnB, deep bass, energetic drop")
+        .desired_width(prompt_rect.width()));
     let r = next(CHOICE);
     label(ui, r, "Target", text);
     panel.target = dropdown(ui, r, "target", &TARGETS, panel.target, None);
