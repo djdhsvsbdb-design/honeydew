@@ -65,9 +65,89 @@ impl SongStructure {
     }
 }
 
+
+/// Requested song length, constrained to the supported one-to-four-minute range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SongDuration {
+    seconds: u16,
+}
+
+impl SongDuration {
+    pub const MIN_SECONDS: u16 = 60;
+    pub const MAX_SECONDS: u16 = 240;
+
+    pub fn new(seconds: u16) -> Self {
+        Self { seconds: seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS) }
+    }
+
+    pub fn seconds(self) -> u16 { self.seconds }
+}
+
+impl Default for SongDuration {
+    fn default() -> Self { Self::new(180) }
+}
+
+impl SongStructure {
+    /// Builds a full-song section plan sized for the requested duration.
+    /// Whole-bar quantization means actual duration may differ slightly.
+    pub fn for_duration(duration: SongDuration, tempo_bpm: f64, beats_per_bar: u8) -> Self {
+        let bpm = if tempo_bpm.is_finite() { tempo_bpm.clamp(20.0, 400.0) } else { 120.0 };
+        let beats = f64::from(beats_per_bar.max(1));
+        let bar_seconds = 60.0 * beats / bpm;
+        let total_bars = (f64::from(duration.seconds()) / bar_seconds).round()
+            .max(8.0).min(f64::from(u16::MAX)) as u16;
+
+        const WEIGHTS: [u16; 8] = [1, 2, 1, 2, 2, 1, 2, 1];
+        const NAMES: [&str; 8] = [
+            "Intro", "Verse 1", "Build-up", "Chorus",
+            "Verse 2", "Bridge", "Final Chorus", "Outro",
+        ];
+        let weight_sum: u32 = WEIGHTS.iter().map(|&w| u32::from(w)).sum();
+        let mut cursor = 0_u16;
+        let mut sections = Vec::with_capacity(NAMES.len());
+
+        for index in 0..NAMES.len() {
+            let end = if index == NAMES.len() - 1 {
+                total_bars
+            } else {
+                let cumulative: u32 = WEIGHTS[..=index].iter().map(|&w| u32::from(w)).sum();
+                ((u32::from(total_bars) * cumulative + weight_sum / 2) / weight_sum) as u16
+            };
+            let remaining = (NAMES.len() - index - 1) as u16;
+            let end = end.max(cursor + 1).min(total_bars - remaining);
+            sections.push(SongSection { name: NAMES[index], start_bar: cursor, end_bar: end });
+            cursor = end;
+        }
+
+        Self { form: SongForm::Standard, sections, total_bars }
+    }
+
+    pub fn estimated_duration_seconds(&self, tempo_bpm: f64, beats_per_bar: u8) -> f64 {
+        let bpm = if tempo_bpm.is_finite() { tempo_bpm.clamp(20.0, 400.0) } else { 120.0 };
+        f64::from(self.total_bars) * f64::from(beats_per_bar.max(1)) * 60.0 / bpm
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn duration_is_clamped_and_structure_covers_requested_length() {
+        assert_eq!(SongDuration::new(10).seconds(), 60);
+        assert_eq!(SongDuration::new(500).seconds(), 240);
+        for seconds in [60, 90, 180, 240] {
+            let structure = SongStructure::for_duration(SongDuration::new(seconds), 120.0, 4);
+            assert_eq!(structure.sections.first().unwrap().start_bar, 0);
+            assert_eq!(structure.sections.last().unwrap().end_bar, structure.total_bars);
+            assert!(structure.sections.iter().all(|s| s.bars() > 0));
+            for pair in structure.sections.windows(2) {
+                assert_eq!(pair[0].end_bar, pair[1].start_bar);
+            }
+            assert!((structure.estimated_duration_seconds(120.0, 4) - f64::from(seconds)).abs() <= 1.0);
+        }
+    }
 
     #[test]
     fn forms_have_expected_lengths_and_contiguous_sections() {
