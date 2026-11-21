@@ -400,11 +400,8 @@ pub fn create_channels(
     let bpb = song.time_sig.bar_beats();
     let parts = generate_parts(structure, root, minor, bpb as u8);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
-    for section in &structure.sections {
-        let start = u32::from(section.start_bar) * bpb * crate::song::PPQ;
-        let end = u32::from(section.end_bar) * bpb * crate::song::PPQ;
-        let index = song.section_at(start, end);
-        song.sections[index].name = section.name.to_owned();
+    if !(selection.drums || selection.bass || selection.piano || selection.melody) {
+        return Vec::new();
     }
     let mut created = Vec::new();
 
@@ -453,6 +450,14 @@ pub fn create_channels(
     }
     if selection.melody {
         add(selection.melody_instrument, crate::song::LaneKind::Notes, parts.melody);
+    }
+    if !created.is_empty() {
+        for section in &structure.sections {
+            let start = u32::from(section.start_bar) * bpb * crate::song::PPQ;
+            let end = u32::from(section.end_bar) * bpb * crate::song::PPQ;
+            let index = song.section_at(start, end);
+            song.sections[index].name = section.name.to_owned();
+        }
     }
     created
 }
