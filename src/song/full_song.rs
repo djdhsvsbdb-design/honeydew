@@ -455,7 +455,7 @@ pub fn generate_piano_events(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
-    seed: u64,
+    _seed: u64,
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = f64::from(beats_per_bar.max(1));
@@ -503,7 +503,7 @@ pub fn generate_bass_events(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
-    seed: u64,
+    _seed: u64,
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
