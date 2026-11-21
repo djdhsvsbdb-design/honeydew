@@ -151,7 +151,7 @@ pub fn tags(song: &Song) -> Vec<(&'static str, String)> {
     let encoder = format!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
     let fields = [
         ("TITLE", title),
-        ("ARTIST", &meta.author),
+        ("ARTIST", &"Alt3r".to_owned()),
         ("ALBUM", &meta.album),
         ("GENRE", &meta.genre),
         ("DATE", &meta.year),
