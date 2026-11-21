@@ -1,5 +1,5 @@
-//! Full-song arrangement templates. This is the first generation layer: it plans song sections
-//! in bars before MIDI/event generation and UI wiring are added.
+//! Full-song arrangement templates and event generation. The Generate panel calls this module
+//! to create editable arrangement tracks; the trained NoteLM supplies melody pitches when packaged.
 
 /// Musical hints extracted from a natural-language generation brief.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
