@@ -392,6 +392,12 @@ pub fn create_channels(
     let bpb = song.time_sig.bar_beats();
     let parts = generate_parts(structure, root, minor, bpb as u8);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
+    for section in &structure.sections {
+        let start = u32::from(section.start_bar) * bpb * crate::song::PPQ;
+        let end = u32::from(section.end_bar) * bpb * crate::song::PPQ;
+        let index = song.section_at(start, end);
+        song.sections[index].name = section.name.to_owned();
+    }
     let mut created = Vec::new();
 
     let mut add = |kind: ChannelKind, lane_kind, events: Vec<crate::song::Event>| {
@@ -403,6 +409,8 @@ pub fn create_channels(
         let clip = channel.lanes[0].add_clip(0, loop_beats);
         clip.events = events;
         clip.fit_loop(bpb);
+        // The internal loop is bar-quantized; the visible clip ends at the requested arrangement length.
+        clip.visible_len_beats = loop_beats;
         created.push(channel_index);
     };
 
