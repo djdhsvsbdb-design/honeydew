@@ -202,12 +202,14 @@ pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8) -> Vec
                         repeat: 0,
                     });
                 }
-                if !intro_or_outro || beat % 2 == 0 {
+            }
+            for step in 0..(bpb * 2) {
+                if !intro_or_outro || step % 2 == 0 {
                     events.push(Event::Drum {
-                        pos: bar_tick + beat * PPQ / 2,
+                        pos: bar_tick + step * PPQ / 2,
                         len_beats: 0.125,
-                        pad: if chorus && beat + 1 == bpb { 4 } else { 3 },
-                        velocity: if beat % 2 == 0 { 150 } else { 112 },
+                        pad: if chorus && step + 1 == bpb * 2 { 4 } else { 3 },
+                        velocity: if step % 2 == 0 { 150 } else { 112 },
                         pan: Event::DEFAULT_PAN,
                         value: Event::DEFAULT_PITCH,
                         repeat: 0,
@@ -243,10 +245,12 @@ pub fn generate_piano_events(
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
         });
-        let chord = [degree, (degree + 2) % 7, (degree + 4) % 7];
-        for (tone, scale_degree) in chord.into_iter().enumerate() {
-            let octave = if tone == 0 { 4 } else { 4 };
-            let key = (i32::from(root % 12) + octave * 12 + scale[scale_degree]).clamp(0, 127) as u8;
+        let chord = [degree, degree + 2, degree + 4];
+        for scale_index in chord {
+            let key = (60 + i32::from(root % 12)
+                + (scale_index / 7) as i32 * 12
+                + scale[scale_index % 7])
+                .clamp(0, 127) as u8;
             let pos = (f64::from(bar) * bpb * f64::from(PPQ)).round() as u32;
             events.push(Event::Note {
                 pos,
@@ -303,6 +307,32 @@ mod tests {
             }
             assert!((structure.estimated_duration_seconds(120.0, 4) - f64::from(seconds)).abs() <= 1.0);
         }
+    }
+
+    #[test]
+    fn generated_parts_cover_the_arrangement_and_use_separate_event_types() {
+        use crate::song::Event;
+        let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
+        let parts = generate_parts(&structure, 0, false, 4);
+        assert!(!parts.drums.is_empty());
+        assert!(!parts.piano.is_empty());
+        assert!(parts.drums.iter().all(|event| matches!(event, Event::Drum { .. })));
+        assert!(parts.piano.iter().all(|event| matches!(event, Event::Note { .. })));
+        let end_tick = u32::from(structure.total_bars) * 4 * crate::song::PPQ;
+        assert!(parts.drums.iter().all(|event| event.pos() < end_tick));
+        assert!(parts.piano.iter().all(|event| event.pos() < end_tick));
+    }
+
+    #[test]
+    fn generated_piano_chords_stay_in_the_selected_scale() {
+        use crate::song::Event;
+        let structure = SongStructure::build(SongForm::Compact);
+        let events = generate_piano_events(&structure, 2, false, 4);
+        let allowed = [2, 4, 6, 7, 9, 11, 1];
+        assert!(events.iter().all(|event| match event {
+            Event::Note { key, .. } => allowed.contains(&(key % 12)),
+            _ => false,
+        }));
     }
 
     #[test]
