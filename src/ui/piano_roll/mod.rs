@@ -2083,7 +2083,7 @@ impl PianoRoll {
             Some(Menu::Humanize(mut panel)) => {
                 let hue = song.channels.get(self.channel).map_or(0.0, |c| c.hue);
                 let ink = channel_color(hue, cx.theme).to_color32();
-                let was = panel.clone();
+                let was = panel;
                 let close = humanize::show(ctx, cx, id.with("humanize"), over, ink, &mut panel);
                 self.menu = close.is_none().then_some(Menu::Humanize(panel));
                 if close == Some(humanize::Close::Apply) {
@@ -2104,7 +2104,7 @@ impl PianoRoll {
                     if panel.is_full_song_target() {
                         // Full-song generation is independent of the clip preview: restore the original clip first.
                         self.audition(song, None, actions);
-                        let description = panel.description_text();
+                        let description = generate::description_text(ctx, id.with("generate"));
                         let profile = crate::song::full_song::PromptProfile::parse(&description);
                         if let Some(bpm) = profile.tempo_bpm {
                             song.tempo_bpm = f64::from(bpm);
@@ -2119,7 +2119,7 @@ impl PianoRoll {
                         );
                         let settings = panel.settings();
                         let root = settings.key.unwrap_or(song.key_root.clamp(0, 11) as u8);
-                        let scale = settings.scale.map(usize::from).unwrap_or_else(|| {
+                        let scale = settings.scale.unwrap_or_else(|| {
                             crate::song::scales::scale_from_stored(song.key_scale)
                         });
                         let scale_name = crate::song::scales::SCALES
@@ -2153,6 +2153,11 @@ impl PianoRoll {
                         self.generate_from = None;
                         actions.push(PianoRollAction::SongEdited { final_edit: true });
                     }
+                }
+                if close.is_some() {
+                    ctx.data_mut(|data| {
+                        data.remove_temp::<String>(id.with("generate").with("description"));
+                    });
                 }
                 // As the Humanize panel's: the preview was drawn before the panel changed.
                 if close.is_some() || panel != was {
