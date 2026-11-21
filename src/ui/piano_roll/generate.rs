@@ -44,7 +44,7 @@ const LABEL_W: f32 = 4.5;
 /// As the Humanize panel's: three fit the 13 U row with their gaps.
 const BUTTON: [f32; 2] = [3.5, 1.0];
 /// The scrolling rows' height: three headers and eleven choice rows.
-const BODY: f32 = 4.0 * HEADER + 13.0 * CHOICE;
+const BODY: f32 = 4.0 * HEADER + 14.0 * CHOICE;
 /// The whole panel, when the screen has room.
 const HEIGHT: f32 = 2.0 * MARGIN + TITLE + BODY + MARGIN + CHOICE;
 /// Seeds run 0..SEEDS.
@@ -78,6 +78,10 @@ pub(crate) struct Panel {
     target: usize,
     /// Index into `SongDuration::choices()`.
     song_duration: usize,
+    drums: bool,
+    bass: bool,
+    piano: bool,
+    melody: bool,
 }
 
 /// How the panel closed.
@@ -104,6 +108,10 @@ impl Panel {
             chords: 0,
             target: 0,
             song_duration: 8,
+            drums: true,
+            bass: true,
+            piano: true,
+            melody: true,
         }
     }
 
@@ -357,4 +365,37 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     let r = next(CHOICE);
     label(ui, r, "Song length", text);
     panel.song_duration = dropdown(ui, r, "song duration", &SONG_DURATIONS, panel.song_duration, Some(7));
+    let r = next(CHOICE);
+    label(ui, r, "Layers", text);
+    let layer_width = m.u(3.0);
+    let layer_gap = m.u(0.2);
+    let start_x = r.right() - 4.0 * layer_width - 3.0 * layer_gap;
+    for (index, (name, selected)) in [
+        ("Drums", &mut panel.drums),
+        ("Bass", &mut panel.bass),
+        ("Piano", &mut panel.piano),
+        ("Lead", &mut panel.melody),
+    ].into_iter().enumerate() {
+        let x = start_x + index as f32 * (layer_width + layer_gap);
+        let rect = Rect::from_min_size(
+            pos2(x, r.center().y - m.u(BUTTON[1]) / 2.0),
+            vec2(layer_width, m.u(BUTTON[1])),
+        );
+        let button_label = if *selected { format!("{name} +") } else { name.to_owned() };
+        let button = dialog::button(id.with(("layer", index)), rect, &button_label, c, m);
+        if widgets::button(ui, cx, &button, true).clicked() {
+            *selected = !*selected;
+        }
+    }
+}
+
+impl Panel {
+    pub(crate) fn layer_selection(&self) -> crate::song::full_song::LayerSelection {
+        crate::song::full_song::LayerSelection {
+            drums: self.drums,
+            bass: self.bass,
+            piano: self.piano,
+            melody: self.melody,
+        }
+    }
 }
