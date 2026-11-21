@@ -32,6 +32,13 @@ impl State {
             (self.rolls.entry(channel)).or_insert_with(|| PianoRoll::for_channel(song, channel));
         roll.open_generate(ctx);
     }
+
+    /// Keeps a full-song generator visible even when the selected channel has no current clip.
+    pub(crate) fn generator_open(&self, channel: usize) -> bool {
+        self.rolls
+            .get(&channel)
+            .is_some_and(PianoRoll::generator_open)
+    }
 }
 
 /// Draws the piano roll of `channel`'s note lane in `app.regions.editor`; back to the playlist once the channel is gone
