@@ -178,7 +178,7 @@ impl Default for MetaState {
         Self {
             created: "?".into(),
             editing_seconds: 0.0,
-            author: String::new(),
+            author: "Alt3r".into(),
             display_title: String::new(),
             locked: false,
             info_url: String::new(),
