@@ -2123,6 +2123,7 @@ impl PianoRoll {
                             root,
                             minor,
                             panel.layer_selection(&generate::instrument_choices()),
+                            panel.settings().seed,
                         );
                         if let Some(&first_channel) = created.first() {
                             actions.push(PianoRollAction::FullSongGenerated { first_channel });
