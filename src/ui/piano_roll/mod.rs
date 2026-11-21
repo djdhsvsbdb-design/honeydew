@@ -222,6 +222,8 @@ pub enum PianoRollAction {
     /// The Generate panel's preview went into the clip: a new engine plays it, and the undo step waits
     /// for `Apply`, as mid-drag ([`PianoRoll::audition`]).
     Audition,
+    /// A new full-song arrangement was created; return to the playlist and select its first new channel.
+    FullSongGenerated { first_channel: usize },
 }
 
 /// The remembered note: what a tap's new note takes. Set whenever exactly one note becomes the selection (a touch-down,
@@ -2122,8 +2124,8 @@ impl PianoRoll {
                             minor,
                             panel.layer_selection(&generate::instrument_choices()),
                         );
-                        if !created.is_empty() {
-                            actions.push(PianoRollAction::SongEdited { final_edit: true });
+                        if let Some(&first_channel) = created.first() {
+                            actions.push(PianoRollAction::FullSongGenerated { first_channel });
                         }
                     } else {
                         // The clip keeps the preview: one final edit, the undo step from the clip
