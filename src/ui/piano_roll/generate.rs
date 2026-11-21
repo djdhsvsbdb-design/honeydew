@@ -96,7 +96,10 @@ pub(crate) enum Close {
 
 /// Reads the prompt stored alongside this panel in egui's temporary state.
 pub(crate) fn description_text(ctx: &Context, id: Id) -> String {
-    ctx.data(|data| data.get_temp::<String>(id.with("description")).unwrap_or_default())
+    ctx.data(|data| {
+        data.get_temp::<String>(id.with("description"))
+            .unwrap_or_default()
+    })
 }
 
 impl Panel {
@@ -392,9 +395,10 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         pos2(r.left() + m.u(LABEL_W), r.top()),
         pos2(r.right(), r.bottom()),
     );
-    let mut description = ui
-        .ctx()
-        .data(|data| data.get_temp::<String>(id.with("description")).unwrap_or_default());
+    let mut description = ui.ctx().data(|data| {
+        data.get_temp::<String>(id.with("description"))
+            .unwrap_or_default()
+    });
     ui.put(
         prompt_rect,
         egui::TextEdit::singleline(&mut description)
