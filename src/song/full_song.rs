@@ -542,6 +542,20 @@ mod tests {
 
 
     #[test]
+    fn prompt_parser_extracts_genre_mood_and_tempo() {
+        let profile = PromptProfile::parse("Dark melodic drum and bass, 174 BPM, powerful and energetic");
+        assert_eq!(profile.genre, Genre::DrumAndBass);
+        assert_eq!(profile.minor, Some(true));
+        assert_eq!(profile.tempo_bpm, Some(174));
+        assert_eq!(profile.energy, 90);
+
+        let calm = PromptProfile::parse("Спокойный светлый ambient");
+        assert_eq!(calm.genre, Genre::Ambient);
+        assert_eq!(calm.minor, Some(false));
+        assert_eq!(calm.energy, 25);
+    }
+
+    #[test]
     fn duration_presets_are_selectable_and_labeled() {
         assert_eq!(SongDuration::choices().len(), 13);
         assert_eq!(SongDuration::from_minutes(1).label(), "1:00");
