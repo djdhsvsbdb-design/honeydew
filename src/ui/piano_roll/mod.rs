@@ -2119,18 +2119,29 @@ impl PianoRoll {
                         );
                         let settings = panel.settings();
                         let root = settings.key.unwrap_or(song.key_root.clamp(0, 11) as u8);
-                        let scale = settings.scale.map(usize::from)
-                            .unwrap_or_else(|| crate::song::scales::scale_from_stored(song.key_scale));
-                        let scale_name = crate::song::scales::SCALES.get(scale).copied().unwrap_or("Major");
-                        let minor = profile.minor.unwrap_or_else(|| scale_name.starts_with("Minor")
-                            || matches!(scale_name, "Dorian" | "Phrygian" | "Locrian"));
+                        let scale = settings.scale.map(usize::from).unwrap_or_else(|| {
+                            crate::song::scales::scale_from_stored(song.key_scale)
+                        });
+                        let scale_name = crate::song::scales::SCALES
+                            .get(scale)
+                            .copied()
+                            .unwrap_or("Major");
+                        let minor = profile.minor.unwrap_or_else(|| {
+                            scale_name.starts_with("Minor")
+                                || matches!(scale_name, "Dorian" | "Phrygian" | "Locrian")
+                        });
                         let created = crate::song::full_song::create_channels(
                             song,
                             &structure,
                             root,
                             minor,
                             panel.layer_selection(&generate::instrument_choices()),
-                            panel.settings().seed ^ description.bytes().fold(0_u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(u64::from(byte))) ^ ((profile.genre as u64) << 8) ^ u64::from(profile.energy),
+                            panel.settings().seed
+                                ^ description.bytes().fold(0_u64, |hash, byte| {
+                                    hash.wrapping_mul(31).wrapping_add(u64::from(byte))
+                                })
+                                ^ ((profile.genre as u64) << 8)
+                                ^ u64::from(profile.energy),
                         );
                         if let Some(&first_channel) = created.first() {
                             actions.push(PianoRollAction::FullSongGenerated { first_channel });
