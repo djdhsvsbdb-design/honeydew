@@ -75,12 +75,41 @@ pub struct SongDuration {
 impl SongDuration {
     pub const MIN_SECONDS: u16 = 60;
     pub const MAX_SECONDS: u16 = 240;
+    pub const STEP_SECONDS: u16 = 15;
+
+    /// Available user-selectable lengths: 1:00, 1:15, ... 4:00.
+    pub const PRESETS: [u16; 13] = [
+        60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240,
+    ];
 
     pub fn new(seconds: u16) -> Self {
         Self { seconds: seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS) }
     }
 
+    /// Selects the nearest available preset for an arbitrary requested duration.
+    pub fn from_seconds(seconds: u16) -> Self {
+        let clamped = seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS);
+        let nearest = ((clamped - Self::MIN_SECONDS + Self::STEP_SECONDS / 2)
+            / Self::STEP_SECONDS) * Self::STEP_SECONDS;
+        Self::new(Self::MIN_SECONDS + nearest)
+    }
+
+    /// Constructs a duration from whole minutes (clamped to 1..=4).
+    pub fn from_minutes(minutes: u8) -> Self {
+        Self::new(u16::from(minutes.clamp(1, 4)) * 60)
+    }
+
     pub fn seconds(self) -> u16 { self.seconds }
+
+    /// Display label suitable for a duration picker.
+    pub fn label(self) -> String {
+        format!("{}:{:02}", self.seconds / 60, self.seconds % 60)
+    }
+
+    /// All selectable durations in ascending order.
+    pub fn choices() -> &'static [u16; 13] {
+        &Self::PRESETS
+    }
 }
 
 impl Default for SongDuration {
@@ -132,6 +161,16 @@ impl SongStructure {
 mod tests {
     use super::*;
 
+
+    #[test]
+    fn duration_presets_are_selectable_and_labeled() {
+        assert_eq!(SongDuration::choices().len(), 13);
+        assert_eq!(SongDuration::from_minutes(1).label(), "1:00");
+        assert_eq!(SongDuration::from_minutes(4).label(), "4:00");
+        assert_eq!(SongDuration::from_seconds(100).seconds(), 105);
+        assert_eq!(SongDuration::from_seconds(101).seconds(), 105);
+        assert_eq!(SongDuration::from_seconds(240).seconds(), 240);
+    }
 
     #[test]
     fn duration_is_clamped_and_structure_covers_requested_length() {
