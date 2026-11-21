@@ -34,6 +34,44 @@ jobs:
       - name: Content tool
         run: cargo test --manifest-path tools/content-build/Cargo.toml
 
+  android:
+    # Build the real APK on the generator branch so Android compatibility is checked, not inferred.
+    if: github.ref == 'refs/heads/honeydew-generator-full-song-export'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.91.0
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-arm-debug
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK and NDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.0.13004108'
+          cargo install cargo-ndk --version 4.1.2 --locked
+      - name: Build Android APK
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          tools/android-dist.sh --base
+      - uses: actions/upload-artifact@v4
+        with:
+          name: honeydew-android-arm-base-debug
+          path: target/honeydew-android-*-arm-base-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
   native-multicore:
     strategy:
       fail-fast: false
