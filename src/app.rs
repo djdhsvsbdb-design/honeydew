@@ -2504,7 +2504,7 @@ impl HoneydewApp {
                 if actions.generate {
                     let channel = self.selected_channel;
                     self.nav.view = View::PianoRoll(channel);
-                    self.slots.piano_roll.open_generate(ui.ctx());
+                    self.slots.piano_roll.open_generate(ui.ctx(), &self.song, channel);
                 }
                 navs.extend(actions.nav.take());
                 actions.playhead = app.playhead;
