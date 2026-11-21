@@ -2083,7 +2083,7 @@ impl PianoRoll {
             Some(Menu::Humanize(mut panel)) => {
                 let hue = song.channels.get(self.channel).map_or(0.0, |c| c.hue);
                 let ink = channel_color(hue, cx.theme).to_color32();
-                let was = panel;
+                let was = panel.clone();
                 let close = humanize::show(ctx, cx, id.with("humanize"), over, ink, &mut panel);
                 self.menu = close.is_none().then_some(Menu::Humanize(panel));
                 if close == Some(humanize::Close::Apply) {
@@ -2129,7 +2129,7 @@ impl PianoRoll {
                             root,
                             minor,
                             panel.layer_selection(&generate::instrument_choices()),
-                            panel.settings().seed ^ panel.description.bytes().fold(0_u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(u64::from(byte))),
+                            panel.settings().seed ^ panel.description.bytes().fold(0_u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(u64::from(byte))) ^ ((profile.genre as u64) << 8) ^ u64::from(profile.energy),
                         );
                         if let Some(&first_channel) = created.first() {
                             actions.push(PianoRollAction::FullSongGenerated { first_channel });
