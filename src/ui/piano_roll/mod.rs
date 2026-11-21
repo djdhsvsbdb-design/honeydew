@@ -2101,7 +2101,7 @@ impl PianoRoll {
                 let close = generate::show(ctx, cx, id.with("generate"), over, ink, &mut panel);
                 self.menu = close.is_none().then_some(Menu::Generate(panel));
                 if close == Some(generate::Close::Apply) {
-                    if panel.target == 1 {
+                    if panel.is_full_song_target() {
                         // Full-song generation is independent of the clip preview: restore the original clip first.
                         self.audition(song, None, actions);
                         let description = panel.description_text();
@@ -2110,7 +2110,7 @@ impl PianoRoll {
                             song.tempo_bpm = f64::from(bpm);
                         }
                         let choices = crate::song::full_song::SongDuration::choices();
-                        let seconds = choices[panel.song_duration.min(choices.len() - 1)];
+                        let seconds = choices[panel.song_duration_index().min(choices.len() - 1)];
                         let duration = crate::song::full_song::SongDuration::new(seconds);
                         let structure = crate::song::full_song::SongStructure::for_duration(
                             duration,
