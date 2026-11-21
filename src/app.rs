@@ -2499,9 +2499,12 @@ impl HoneydewApp {
                     Some(edit) => app.song_edited(edit == SongEdit::Final),
                     None => {}
                 }
-                // The transport bar's GENERATE (the piano roll only, PR #87) opens the roll's `Generate` panel.
-                if let (true, View::PianoRoll(channel)) = (actions.generate, self.nav.view) {
-                    (self.slots.piano_roll).open_generate(ui.ctx(), app.song, channel);
+                // The main-screen GENERATE shortcut opens the selected channel's Piano Roll and its generator.
+                // The roll's existing clip-based generation logic remains unchanged.
+                if actions.generate {
+                    let channel = self.selected_channel;
+                    self.nav.view = View::PianoRoll(channel);
+                    self.slots.piano_roll.open_generate(ui.ctx());
                 }
                 navs.extend(actions.nav.take());
                 actions.playhead = app.playhead;
