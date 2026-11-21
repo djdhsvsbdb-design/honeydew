@@ -203,7 +203,7 @@ impl Default for LayerSelection {
 
 /// Generates a complete drum part over every section, with restrained intro/bridge and stronger choruses.
 /// Pad indices follow the default drum kit: kick 0, snare 1, clap 2, closed hat 3, open hat 4.
-pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8) -> Vec<crate::song::Event> {
+pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8, seed: u64) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
     let mut events = Vec::new();
@@ -264,6 +264,7 @@ pub fn generate_piano_events(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
+    seed: u64,
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = f64::from(beats_per_bar.max(1));
@@ -275,7 +276,7 @@ pub fn generate_piano_events(
     let degrees: [usize; 4] = if minor { [0, 5, 2, 6] } else { [0, 4, 5, 3] };
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
-        let degree = degrees[usize::from(bar) % degrees.len()];
+        let degree = degrees[(usize::from(bar) + seed as usize % degrees.len()) % degrees.len()];
         let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
         let sparse = section.is_some_and(|s| {
             let name = s.name.to_ascii_lowercase();
@@ -307,6 +308,7 @@ pub fn generate_bass_events(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
+    seed: u64,
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
@@ -343,6 +345,7 @@ pub fn generate_melody_events(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
+    seed: u64,
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
@@ -358,7 +361,7 @@ pub fn generate_melody_events(
         let steps = if sparse { 2 } else { 4 };
         for step in 0..steps {
             let beat = u32::from(step) * bpb / u32::from(steps);
-            let degree = (usize::from(bar) + usize::from(step) * 2) % 7;
+            let degree = (usize::from(bar) + usize::from(step) * 2 + seed as usize % 7) % 7;
             let key = (72 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
             events.push(Event::Note {
                 pos: start + beat * PPQ,
@@ -379,12 +382,13 @@ pub fn generate_parts(
     root: u8,
     minor: bool,
     beats_per_bar: u8,
+    seed: u64,
 ) -> GeneratedParts {
     GeneratedParts {
-        drums: generate_drum_events(structure, beats_per_bar),
-        bass: generate_bass_events(structure, root, minor, beats_per_bar),
-        piano: generate_piano_events(structure, root, minor, beats_per_bar),
-        melody: generate_melody_events(structure, root, minor, beats_per_bar),
+        drums: generate_drum_events(structure, beats_per_bar, seed),
+        bass: generate_bass_events(structure, root, minor, beats_per_bar, seed),
+        piano: generate_piano_events(structure, root, minor, beats_per_bar, seed),
+        melody: generate_melody_events(structure, root, minor, beats_per_bar, seed),
     }
 }
 
@@ -395,10 +399,11 @@ pub fn create_channels(
     root: u8,
     minor: bool,
     selection: LayerSelection,
+    seed: u64,
 ) -> Vec<usize> {
     use crate::song::ChannelKind;
     let bpb = song.time_sig.bar_beats();
-    let parts = generate_parts(structure, root, minor, bpb as u8);
+    let parts = generate_parts(structure, root, minor, bpb as u8, seed);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
     if !(selection.drums || selection.bass || selection.piano || selection.melody) {
         return Vec::new();
@@ -497,7 +502,7 @@ mod tests {
     fn generated_parts_cover_the_arrangement_and_use_separate_event_types() {
         use crate::song::Event;
         let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
-        let parts = generate_parts(&structure, 0, false, 4);
+        let parts = generate_parts(&structure, 0, false, 4, 0);
         assert!(!parts.drums.is_empty());
         assert!(!parts.piano.is_empty());
         assert!(!parts.bass.is_empty());
@@ -517,7 +522,7 @@ mod tests {
         let mut song = crate::song::Song::default();
         let original_count = song.channels.len();
         let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
-        let created = create_channels(&mut song, &structure, 0, false, LayerSelection::default());
+        let created = create_channels(&mut song, &structure, 0, false, LayerSelection::default(), 0);
         assert_eq!(created.len(), 4);
         assert_eq!(song.channels.len(), original_count + 4);
         assert_eq!(song.channels[created[0]].kind, ChannelKind::Drums);
