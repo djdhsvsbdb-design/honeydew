@@ -377,7 +377,7 @@ pub fn create_channels(
     minor: bool,
     selection: LayerSelection,
 ) -> Vec<usize> {
-    use crate::song::{ChannelKind, SynthKind, PPQ};
+    use crate::song::{ChannelKind, SynthKind};
     let bpb = song.time_sig.bar_beats();
     let parts = generate_parts(structure, root, minor, bpb as u8);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
@@ -407,7 +407,6 @@ pub fn create_channels(
     if selection.melody {
         add(ChannelKind::Synth(SynthKind::SuperSaw), crate::song::LaneKind::Notes, parts.melody);
     }
-    let _ = PPQ;
     created
 }
 
@@ -449,11 +448,34 @@ mod tests {
         let parts = generate_parts(&structure, 0, false, 4);
         assert!(!parts.drums.is_empty());
         assert!(!parts.piano.is_empty());
+        assert!(!parts.bass.is_empty());
+        assert!(!parts.melody.is_empty());
         assert!(parts.drums.iter().all(|event| matches!(event, Event::Drum { .. })));
         assert!(parts.piano.iter().all(|event| matches!(event, Event::Note { .. })));
+        assert!(parts.bass.iter().all(|event| matches!(event, Event::Note { .. })));
+        assert!(parts.melody.iter().all(|event| matches!(event, Event::Note { .. })));
         let end_tick = u32::from(structure.total_bars) * 4 * crate::song::PPQ;
         assert!(parts.drums.iter().all(|event| event.pos() < end_tick));
         assert!(parts.piano.iter().all(|event| event.pos() < end_tick));
+    }
+
+    #[test]
+    fn selected_layers_create_new_editable_channels_without_touching_existing_ones() {
+        use crate::song::{ChannelKind, LaneKind};
+        let mut song = crate::song::Song::default();
+        let original_count = song.channels.len();
+        let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
+        let created = create_channels(&mut song, &structure, 0, false, LayerSelection::default());
+        assert_eq!(created.len(), 4);
+        assert_eq!(song.channels.len(), original_count + 4);
+        assert_eq!(song.channels[created[0]].kind, ChannelKind::Drums);
+        assert_eq!(song.channels[created[0]].lanes[0].kind, LaneKind::Drums);
+        assert!(song.channels[created[0]].lanes[0].clips[0].events.iter()
+            .all(|event| matches!(event, crate::song::Event::Drum { .. })));
+        assert!(created[1..].iter().all(|&i| {
+            song.channels[i].lanes[0].kind == LaneKind::Notes
+                && !song.channels[i].lanes[0].clips[0].events.is_empty()
+        }));
     }
 
     #[test]
