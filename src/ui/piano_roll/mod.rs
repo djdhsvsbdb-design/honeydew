@@ -2099,11 +2099,33 @@ impl PianoRoll {
                 let close = generate::show(ctx, cx, id.with("generate"), over, ink, &mut panel);
                 self.menu = close.is_none().then_some(Menu::Generate(panel));
                 if close == Some(generate::Close::Apply) {
-                    // The clip keeps the preview ([`Self::audition`]): one final edit, the undo step from the clip
-                    // the panel opened on.
-                    self.audition(song, Some(panel), actions);
-                    self.generate_from = None;
-                    actions.push(PianoRollAction::SongEdited { final_edit: true });
+                    if panel.target == 1 {
+                        let choices = crate::song::full_song::SongDuration::choices();
+                        let seconds = choices[panel.song_duration.min(choices.len() - 1)];
+                        let duration = crate::song::full_song::SongDuration::new(seconds);
+                        let structure = crate::song::full_song::SongStructure::for_duration(
+                            duration,
+                            song.tempo_bpm,
+                            song.time_sig.beats_per_bar,
+                        );
+                        let root = song.key_root.clamp(0, 11) as u8;
+                        let created = crate::song::full_song::create_channels(
+                            song,
+                            &structure,
+                            root,
+                            false,
+                            crate::song::full_song::LayerSelection::default(),
+                        );
+                        if !created.is_empty() {
+                            actions.push(PianoRollAction::SongEdited { final_edit: true });
+                        }
+                    } else {
+                        // The clip keeps the preview: one final edit, the undo step from the clip
+                        // the panel opened on.
+                        self.audition(song, Some(panel), actions);
+                        self.generate_from = None;
+                        actions.push(PianoRollAction::SongEdited { final_edit: true });
+                    }
                 }
                 // As the Humanize panel's: the preview was drawn before the panel changed.
                 if close.is_some() || panel != was {
