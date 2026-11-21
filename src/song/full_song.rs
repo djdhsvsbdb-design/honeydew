@@ -519,7 +519,10 @@ pub fn generate_bass_events(
     };
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
-        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let section = structure
+            .sections
+            .iter()
+            .find(|s| bar >= s.start_bar && bar < s.end_bar);
         let sparse = section.is_some_and(|s| {
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
@@ -552,10 +555,17 @@ pub fn generate_melody_events(
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
-    let scale = if minor { [0, 2, 3, 5, 7, 8, 10] } else { [0, 2, 4, 5, 7, 9, 11] };
+    let scale = if minor {
+        [0, 2, 3, 5, 7, 8, 10]
+    } else {
+        [0, 2, 4, 5, 7, 9, 11]
+    };
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
-        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let section = structure
+            .sections
+            .iter()
+            .find(|s| bar >= s.start_bar && bar < s.end_bar);
         let sparse = section.is_some_and(|s| {
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
@@ -798,8 +808,12 @@ mod tests {
         assert_eq!(song.channels.len(), original_count + 4);
         assert_eq!(song.channels[created[0]].kind, ChannelKind::Drums);
         assert_eq!(song.channels[created[0]].lanes[0].kind, LaneKind::Drums);
-        assert!(song.channels[created[0]].lanes[0].clips[0].events.iter()
-            .all(|event| matches!(event, crate::song::Event::Drum { .. })));
+        assert!(
+            song.channels[created[0]].lanes[0].clips[0]
+                .events
+                .iter()
+                .all(|event| matches!(event, crate::song::Event::Drum { .. }))
+        );
         assert!(created[1..].iter().all(|&i| {
             song.channels[i].lanes[0].kind == LaneKind::Notes
                 && !song.channels[i].lanes[0].clips[0].events.is_empty()
