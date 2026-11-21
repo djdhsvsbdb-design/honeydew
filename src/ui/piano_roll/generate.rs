@@ -44,7 +44,7 @@ const LABEL_W: f32 = 4.5;
 /// As the Humanize panel's: three fit the 13 U row with their gaps.
 const BUTTON: [f32; 2] = [3.5, 1.0];
 /// The scrolling rows' height: three headers and eleven choice rows.
-const BODY: f32 = 4.0 * HEADER + 14.0 * CHOICE;
+const BODY: f32 = 4.0 * HEADER + 17.0 * CHOICE;
 /// The whole panel, when the screen has room.
 const HEIGHT: f32 = 2.0 * MARGIN + TITLE + BODY + MARGIN + CHOICE;
 /// Seeds run 0..SEEDS.
@@ -82,6 +82,9 @@ pub(crate) struct Panel {
     bass: bool,
     piano: bool,
     melody: bool,
+    bass_synth: usize,
+    piano_synth: usize,
+    melody_synth: usize,
 }
 
 /// How the panel closed.
@@ -112,6 +115,9 @@ impl Panel {
             bass: true,
             piano: true,
             melody: true,
+            bass_synth: 3,
+            piano_synth: 0,
+            melody_synth: 4,
         }
     }
 
@@ -387,6 +393,16 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
             *selected = !*selected;
         }
     }
+    let synths: Vec<&str> = crate::song::SynthKind::ALL.iter().map(|kind| kind.label()).collect();
+    let r = next(CHOICE);
+    label(ui, r, "Bass synth", text);
+    panel.bass_synth = dropdown(ui, r, "bass synth", &synths, panel.bass_synth, None);
+    let r = next(CHOICE);
+    label(ui, r, "Piano synth", text);
+    panel.piano_synth = dropdown(ui, r, "piano synth", &synths, panel.piano_synth, None);
+    let r = next(CHOICE);
+    label(ui, r, "Lead synth", text);
+    panel.melody_synth = dropdown(ui, r, "lead synth", &synths, panel.melody_synth, None);
 }
 
 impl Panel {
@@ -396,6 +412,9 @@ impl Panel {
             bass: self.bass,
             piano: self.piano,
             melody: self.melody,
+            bass_synth: crate::song::SynthKind::ALL[self.bass_synth.min(crate::song::SynthKind::ALL.len() - 1)],
+            piano_synth: crate::song::SynthKind::ALL[self.piano_synth.min(crate::song::SynthKind::ALL.len() - 1)],
+            melody_synth: crate::song::SynthKind::ALL[self.melody_synth.min(crate::song::SynthKind::ALL.len() - 1)],
         }
     }
 }
