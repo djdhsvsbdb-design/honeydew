@@ -1878,7 +1878,15 @@ impl MainScreen {
         if let Some(name) = input.scale_name {
             let font = m.font_id(FontSize::Pt8);
             let ink = text.gamma_multiply(SCALE_ALPHA);
-            widgets::truncated(ui.painter(), slots.scale, Align2::LEFT_CENTER, name, font, ink, 5);
+            widgets::truncated(
+                ui.painter(),
+                slots.scale,
+                Align2::LEFT_CENTER,
+                name,
+                font,
+                ink,
+                5,
+            );
         }
 
         // Centre group: REC, REWIND, play, tempo, CONTROL.
