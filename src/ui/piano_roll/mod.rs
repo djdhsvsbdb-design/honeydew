@@ -2114,7 +2114,7 @@ impl PianoRoll {
                             &structure,
                             root,
                             false,
-                            crate::song::full_song::LayerSelection::default(),
+                            panel.layer_selection(),
                         );
                         if !created.is_empty() {
                             actions.push(PianoRollAction::SongEdited { final_edit: true });
