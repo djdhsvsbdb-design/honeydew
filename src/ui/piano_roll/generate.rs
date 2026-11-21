@@ -60,8 +60,6 @@ const LEADS: [&str; 2] = ["Chords", "Melody"];
 /// project) and the rhythm: the note length, the rests, the arpeggios and which chords to write.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Panel {
-    /// UTF-8 natural-language brief, kept inline so the panel remains Copy.
-    description: [u8; 256],
     preset: usize,
     bars: usize,
     /// 0: the chords lead; 1: the melody.
@@ -100,7 +98,6 @@ impl Panel {
     /// Pop, 2 bars, the chords leading, on seed `seed` (kept to 0..100 000).
     pub(crate) fn new(seed: u64) -> Self {
         Self {
-            description: [0; 256],
             preset: 0,
             bars: 1,
             lead: 0,
@@ -122,16 +119,6 @@ impl Panel {
             piano_instrument: 0,
             melody_instrument: 4,
         }
-    }
-
-    /// The natural-language brief currently entered in the panel.
-    pub(crate) fn description_text(&self) -> String {
-        let end = self
-            .description
-            .iter()
-            .position(|&byte| byte == 0)
-            .unwrap_or(self.description.len());
-        String::from_utf8_lossy(&self.description[..end]).into_owned()
     }
 
     /// Whether generation should create a new full-song arrangement.
@@ -244,6 +231,9 @@ pub(crate) fn show(
             };
             if button(ui, inner.left(), "reset", "Reset") {
                 *panel = Panel::new(panel.seed);
+                ctx.data_mut(|data| {
+                    data.insert_temp(id.with("description"), String::new());
+                });
             }
             let step = m.u(BUTTON[0] + MARGIN);
             if button(
@@ -397,17 +387,18 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         pos2(r.left() + m.u(LABEL_W), r.top()),
         pos2(r.right(), r.bottom()),
     );
-    let mut description = panel.description_text();
+    let mut description = ui
+        .ctx()
+        .data(|data| data.get_temp::<String>(id.with("description")).unwrap_or_default());
     ui.put(
         prompt_rect,
         egui::TextEdit::singleline(&mut description)
             .hint_text("e.g. dark melodic DnB, deep bass, energetic drop")
             .desired_width(prompt_rect.width()),
     );
-    panel.description = [0; 256];
-    let bytes = description.as_bytes();
-    let len = bytes.len().min(panel.description.len() - 1);
-    panel.description[..len].copy_from_slice(&bytes[..len]);
+    ui.ctx().data_mut(|data| {
+        data.insert_temp(id.with("description"), description);
+    });
     let r = next(CHOICE);
     label(ui, r, "Target", text);
     panel.target = dropdown(ui, r, "target", &TARGETS, panel.target, None);
