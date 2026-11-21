@@ -3,7 +3,7 @@ text,genre,mood,energy,mode,instrument
 "Сделай спокойный эмбиент с мягкими пэдами",Ambient,calm,low,minor,pad
 "Весёлый поп с ярким пианино",Pop,happy,medium,major,piano
 "Энергичный драм-н-бейс с мощным басом",DrumAndBass,energetic,high,minor,bass
-"Лёгкий хаус для летней вечеринки",House, uplifting,high,major,synth
+"Лёгкий хаус для летней вечеринки",House,uplifting,high,major,synth
 "Грустный меланхоличный хип-хоп",HipHop,sad,low,minor,bass
 "Агрессивный трэп с жёсткими ударными",Trap,aggressive,high,minor,drums
 "Кинематографичная музыка с напряжённой атмосферой",Cinematic,tense,medium,minor,strings
