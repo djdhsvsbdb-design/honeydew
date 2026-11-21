@@ -117,7 +117,7 @@ impl Panel {
             rests: 1,
             arp: 0,
             chords: 0,
-            target: 0,
+            target: 1,
             song_duration: 8,
             drums: true,
             bass: true,
@@ -503,6 +503,16 @@ pub(crate) fn instrument_choices() -> Vec<(String, crate::song::full_song::Gener
             _ => None,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Panel;
+
+    #[test]
+    fn main_generator_defaults_to_full_song() {
+        assert!(Panel::new(0).is_full_song_target());
+    }
 }
 
 impl Panel {
