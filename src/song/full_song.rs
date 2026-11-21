@@ -170,6 +170,7 @@ pub struct GeneratedParts {
 /// The instrument to place on a generated notes channel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeneratedInstrument {
+    Drums,
     Synth(crate::song::SynthKind),
     Plugin(&'static str),
 }
@@ -409,6 +410,7 @@ pub fn create_channels(
 
     let mut add = |instrument: GeneratedInstrument, lane_kind, events: Vec<crate::song::Event>| {
         let kind = match instrument {
+            GeneratedInstrument::Drums => ChannelKind::Drums,
             GeneratedInstrument::Synth(synth) => ChannelKind::Synth(synth),
             GeneratedInstrument::Plugin(_) => ChannelKind::Instrument,
         };
@@ -441,7 +443,7 @@ pub fn create_channels(
     };
 
     if selection.drums {
-        add(ChannelKind::Drums, crate::song::LaneKind::Drums, parts.drums);
+        add(GeneratedInstrument::Drums, crate::song::LaneKind::Drums, parts.drums);
     }
     if selection.bass {
         add(selection.bass_instrument, crate::song::LaneKind::Notes, parts.bass);
