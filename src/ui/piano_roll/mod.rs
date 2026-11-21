@@ -916,6 +916,11 @@ impl PianoRoll {
         ctx.request_repaint();
     }
 
+    /// Whether this roll has a generator panel that must remain visible without a selected clip.
+    pub(crate) fn generator_open(&self) -> bool {
+        matches!(self.menu, Some(Menu::Generate(_)))
+    }
+
     /// The keys the roll sounds stop now, as at [`Self::hide`] (a hidden web page runs no frame, `app::on_hidden`): its
     /// key column's, a new note's and a dragged one's. A touch under way goes on, and ends with nothing to stop.
     pub(crate) fn silence(&mut self) -> Vec<u8> {
