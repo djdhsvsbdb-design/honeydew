@@ -1,6 +1,8 @@
 name: Android debug APK
 
 on:
+  push:
+    branches: ["honeydew-generator-full-song-export"]
   workflow_dispatch:
 
 permissions:
