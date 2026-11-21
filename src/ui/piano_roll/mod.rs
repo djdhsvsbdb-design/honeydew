@@ -2104,6 +2104,10 @@ impl PianoRoll {
                     if panel.target == 1 {
                         // Full-song generation is independent of the clip preview: restore the original clip first.
                         self.audition(song, None, actions);
+                        let profile = crate::song::full_song::PromptProfile::parse(&panel.description);
+                        if let Some(bpm) = profile.tempo_bpm {
+                            song.tempo_bpm = f64::from(bpm);
+                        }
                         let choices = crate::song::full_song::SongDuration::choices();
                         let seconds = choices[panel.song_duration.min(choices.len() - 1)];
                         let duration = crate::song::full_song::SongDuration::new(seconds);
@@ -2117,15 +2121,15 @@ impl PianoRoll {
                         let scale = settings.scale.map(usize::from)
                             .unwrap_or_else(|| crate::song::scales::scale_from_stored(song.key_scale));
                         let scale_name = crate::song::scales::SCALES.get(scale).copied().unwrap_or("Major");
-                        let minor = scale_name.starts_with("Minor")
-                            || matches!(scale_name, "Dorian" | "Phrygian" | "Locrian");
+                        let minor = profile.minor.unwrap_or_else(|| scale_name.starts_with("Minor")
+                            || matches!(scale_name, "Dorian" | "Phrygian" | "Locrian"));
                         let created = crate::song::full_song::create_channels(
                             song,
                             &structure,
                             root,
                             minor,
                             panel.layer_selection(&generate::instrument_choices()),
-                            panel.settings().seed,
+                            panel.settings().seed ^ panel.description.bytes().fold(0_u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(u64::from(byte))),
                         );
                         if let Some(&first_channel) = created.first() {
                             actions.push(PianoRollAction::FullSongGenerated { first_channel });
