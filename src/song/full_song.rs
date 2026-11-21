@@ -390,7 +390,7 @@ pub fn generate_bass_events(
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
         });
-        let degree = degrees[usize::from(bar) % degrees.len()];
+        let degree = degrees[(usize::from(bar) + seed as usize % degrees.len()) % degrees.len()];
         let key = (36 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
         let start = u32::from(bar) * bpb * PPQ;
         let positions: &[u32] = if sparse || bpb < 4 { &[0] } else { &[0, 2] };
@@ -427,10 +427,10 @@ pub fn generate_melody_events(
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
         });
         let start = u32::from(bar) * bpb * PPQ;
-        let steps = if sparse { 2 } else { 4 };
+        let steps: u32 = if sparse { 2 } else { 4 };
         for step in 0..steps {
-            let beat = u32::from(step) * bpb / u32::from(steps);
-            let degree = (usize::from(bar) + usize::from(step) * 2 + seed as usize % 7) % 7;
+            let beat = step * bpb / steps;
+            let degree = (usize::from(bar) + step as usize * 2 + seed as usize % 7) % 7;
             let key = (72 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
             events.push(Event::Note {
                 pos: start + beat * PPQ,
