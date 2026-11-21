@@ -162,7 +162,24 @@ impl SongStructure {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneratedParts {
     pub drums: Vec<crate::song::Event>,
+    pub bass: Vec<crate::song::Event>,
     pub piano: Vec<crate::song::Event>,
+    pub melody: Vec<crate::song::Event>,
+}
+
+/// Which generated instrument layers should become new project channels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LayerSelection {
+    pub drums: bool,
+    pub bass: bool,
+    pub piano: bool,
+    pub melody: bool,
+}
+
+impl Default for LayerSelection {
+    fn default() -> Self {
+        Self { drums: true, bass: true, piano: true, melody: true }
+    }
 }
 
 /// Generates a complete drum part over every section, with restrained intro/bridge and stronger choruses.
@@ -265,7 +282,79 @@ pub fn generate_piano_events(
     events
 }
 
-/// Builds the initial drum and piano layers for a complete arrangement.
+/// Generates a bass line that follows the chord roots, with a simple section-aware rhythm.
+pub fn generate_bass_events(
+    structure: &SongStructure,
+    root: u8,
+    minor: bool,
+    beats_per_bar: u8,
+) -> Vec<crate::song::Event> {
+    use crate::song::{Event, PPQ};
+    let bpb = u32::from(beats_per_bar.max(1));
+    let scale = if minor { [0, 2, 3, 5, 7, 8, 10] } else { [0, 2, 4, 5, 7, 9, 11] };
+    let degrees = if minor { [0_usize, 5, 2, 6] } else { [0_usize, 4, 5, 3] };
+    let mut events = Vec::new();
+    for bar in 0..structure.total_bars {
+        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let sparse = section.is_some_and(|s| {
+            let name = s.name.to_ascii_lowercase();
+            name.contains("intro") || name.contains("bridge") || name.contains("outro")
+        });
+        let degree = degrees[usize::from(bar) % degrees.len()];
+        let key = (36 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
+        let start = u32::from(bar) * bpb * PPQ;
+        let positions: &[u32] = if sparse || bpb < 4 { &[0] } else { &[0, 2] };
+        for &beat in positions {
+            events.push(Event::Note {
+                pos: start + beat * PPQ,
+                len_beats: 0.9,
+                key,
+                velocity: 190,
+                pan: Event::DEFAULT_PAN,
+                slide: false,
+            });
+        }
+    }
+    events
+}
+
+/// Generates a scale-constrained lead motif with section-dependent density.
+pub fn generate_melody_events(
+    structure: &SongStructure,
+    root: u8,
+    minor: bool,
+    beats_per_bar: u8,
+) -> Vec<crate::song::Event> {
+    use crate::song::{Event, PPQ};
+    let bpb = u32::from(beats_per_bar.max(1));
+    let scale = if minor { [0, 2, 3, 5, 7, 8, 10] } else { [0, 2, 4, 5, 7, 9, 11] };
+    let mut events = Vec::new();
+    for bar in 0..structure.total_bars {
+        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let sparse = section.is_some_and(|s| {
+            let name = s.name.to_ascii_lowercase();
+            name.contains("intro") || name.contains("bridge") || name.contains("outro")
+        });
+        let start = u32::from(bar) * bpb * PPQ;
+        let steps = if sparse { 2 } else { 4 };
+        for step in 0..steps {
+            let beat = u32::from(step) * bpb / u32::from(steps);
+            let degree = (usize::from(bar) + usize::from(step) * 2) % 7;
+            let key = (72 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
+            events.push(Event::Note {
+                pos: start + beat * PPQ,
+                len_beats: 0.45,
+                key,
+                velocity: if sparse { 145 } else { 175 },
+                pan: Event::DEFAULT_PAN,
+                slide: false,
+            });
+        }
+    }
+    events
+}
+
+/// Builds all four independently editable layers for the arrangement.
 pub fn generate_parts(
     structure: &SongStructure,
     root: u8,
@@ -274,8 +363,52 @@ pub fn generate_parts(
 ) -> GeneratedParts {
     GeneratedParts {
         drums: generate_drum_events(structure, beats_per_bar),
+        bass: generate_bass_events(structure, root, minor, beats_per_bar),
         piano: generate_piano_events(structure, root, minor, beats_per_bar),
+        melody: generate_melody_events(structure, root, minor, beats_per_bar),
     }
+}
+
+/// Adds selected generated layers as brand-new channels and clips. Existing project channels are never modified.
+pub fn create_channels(
+    song: &mut crate::song::Song,
+    structure: &SongStructure,
+    root: u8,
+    minor: bool,
+    selection: LayerSelection,
+) -> Vec<usize> {
+    use crate::song::{ChannelKind, SynthKind, PPQ};
+    let bpb = song.time_sig.bar_beats();
+    let parts = generate_parts(structure, root, minor, bpb as u8);
+    let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
+    let mut created = Vec::new();
+
+    let mut add = |kind: ChannelKind, lane_kind, events: Vec<crate::song::Event>| {
+        let Some(channel_index) = song.insert_channel(song.channels.len(), kind) else { return; };
+        let channel = &mut song.channels[channel_index];
+        if channel.lanes[0].kind != lane_kind {
+            return;
+        }
+        let clip = channel.lanes[0].add_clip(0, loop_beats);
+        clip.events = events;
+        clip.fit_loop(bpb);
+        created.push(channel_index);
+    };
+
+    if selection.drums {
+        add(ChannelKind::Drums, crate::song::LaneKind::Drums, parts.drums);
+    }
+    if selection.bass {
+        add(ChannelKind::Synth(SynthKind::TransistorBass), crate::song::LaneKind::Notes, parts.bass);
+    }
+    if selection.piano {
+        add(ChannelKind::Synth(SynthKind::MiniSynth), crate::song::LaneKind::Notes, parts.piano);
+    }
+    if selection.melody {
+        add(ChannelKind::Synth(SynthKind::SuperSaw), crate::song::LaneKind::Notes, parts.melody);
+    }
+    let _ = PPQ;
+    created
 }
 
 #[cfg(test)]
