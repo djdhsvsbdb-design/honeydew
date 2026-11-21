@@ -2102,6 +2102,8 @@ impl PianoRoll {
                 self.menu = close.is_none().then_some(Menu::Generate(panel));
                 if close == Some(generate::Close::Apply) {
                     if panel.target == 1 {
+                        // Full-song generation is independent of the clip preview: restore the original clip first.
+                        self.audition(song, None, actions);
                         let choices = crate::song::full_song::SongDuration::choices();
                         let seconds = choices[panel.song_duration.min(choices.len() - 1)];
                         let duration = crate::song::full_song::SongDuration::new(seconds);
