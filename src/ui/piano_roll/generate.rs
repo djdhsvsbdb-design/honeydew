@@ -94,6 +94,11 @@ pub(crate) enum Close {
     Cancel,
 }
 
+/// Reads the prompt stored alongside this panel in egui's temporary state.
+pub(crate) fn description_text(ctx: &Context, id: Id) -> String {
+    ctx.data(|data| data.get_temp::<String>(id.with("description")).unwrap_or_default())
+}
+
 impl Panel {
     /// Pop, 2 bars, the chords leading, on seed `seed` (kept to 0..100 000).
     pub(crate) fn new(seed: u64) -> Self {
