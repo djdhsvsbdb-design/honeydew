@@ -30,32 +30,94 @@ impl PromptProfile {
     /// it does not claim to be a remote generative AI model.
     pub fn parse(description: &str) -> Self {
         let text = description.to_ascii_lowercase();
-        let minor = if ["minor", "dark", "sad", "melancholic", "мрач", "груст", "минор"]
-            .iter().any(|word| text.contains(word)) { Some(true) }
-        else if ["major", "happy", "bright", "uplifting", "весел", "мажор", "светл"]
-            .iter().any(|word| text.contains(word)) { Some(false) }
-        else { None };
-        let genre = if text.contains("drum and bass") || text.contains("dnb") || text.contains("драм-н-бейс") { Genre::DrumAndBass }
-        else if text.contains("house") || text.contains("хаус") { Genre::House }
-        else if text.contains("techno") || text.contains("техно") { Genre::Techno }
-        else if text.contains("trap") || text.contains("трэп") { Genre::Trap }
-        else if text.contains("hip-hop") || text.contains("hip hop") || text.contains("хип-хоп") { Genre::HipHop }
-        else if text.contains("rock") || text.contains("рок") { Genre::Rock }
-        else if text.contains("pop") || text.contains("поп") { Genre::Pop }
-        else if text.contains("ambient") || text.contains("эмбиент") { Genre::Ambient }
-        else if text.contains("cinematic") || text.contains("кинемат") { Genre::Cinematic }
-        else if text.contains("edm") || text.contains("electronic") || text.contains("электрон") { Genre::Electronic }
-        else { Genre::Unknown };
-        let energy = if ["aggressive", "energetic", " мощ", "энерг", "жестк", "интенсив"]
-            .iter().any(|word| text.contains(word.trim())) { 90 }
-        else if ["calm", "soft", "chill", "спокой", "мягк", "расслаб"]
-            .iter().any(|word| text.contains(word)) { 25 }
-        else { 60 };
-        let tempo_bpm = text.split(|ch: char| !ch.is_ascii_digit())
+        let minor = if [
+            "minor",
+            "dark",
+            "sad",
+            "melancholic",
+            "мрач",
+            "груст",
+            "минор",
+        ]
+        .iter()
+        .any(|word| text.contains(word))
+        {
+            Some(true)
+        } else if [
+            "major",
+            "happy",
+            "bright",
+            "uplifting",
+            "весел",
+            "мажор",
+            "светл",
+        ]
+        .iter()
+        .any(|word| text.contains(word))
+        {
+            Some(false)
+        } else {
+            None
+        };
+        let genre = if text.contains("drum and bass")
+            || text.contains("dnb")
+            || text.contains("драм-н-бейс")
+        {
+            Genre::DrumAndBass
+        } else if text.contains("house") || text.contains("хаус") {
+            Genre::House
+        } else if text.contains("techno") || text.contains("техно") {
+            Genre::Techno
+        } else if text.contains("trap") || text.contains("трэп") {
+            Genre::Trap
+        } else if text.contains("hip-hop") || text.contains("hip hop") || text.contains("хип-хоп")
+        {
+            Genre::HipHop
+        } else if text.contains("rock") || text.contains("рок") {
+            Genre::Rock
+        } else if text.contains("pop") || text.contains("поп") {
+            Genre::Pop
+        } else if text.contains("ambient") || text.contains("эмбиент") {
+            Genre::Ambient
+        } else if text.contains("cinematic") || text.contains("кинемат") {
+            Genre::Cinematic
+        } else if text.contains("edm") || text.contains("electronic") || text.contains("электрон")
+        {
+            Genre::Electronic
+        } else {
+            Genre::Unknown
+        };
+        let energy = if [
+            "aggressive",
+            "energetic",
+            " мощ",
+            "энерг",
+            "жестк",
+            "интенсив",
+        ]
+        .iter()
+        .any(|word| text.contains(word.trim()))
+        {
+            90
+        } else if ["calm", "soft", "chill", "спокой", "мягк", "расслаб"]
+            .iter()
+            .any(|word| text.contains(word))
+        {
+            25
+        } else {
+            60
+        };
+        let tempo_bpm = text
+            .split(|ch: char| !ch.is_ascii_digit())
             .filter(|part| !part.is_empty())
             .filter_map(|part| part.parse::<u16>().ok())
             .find(|bpm| (40..=220).contains(bpm));
-        Self { minor, tempo_bpm, energy, genre }
+        Self {
+            minor,
+            tempo_bpm,
+            energy,
+            genre,
+        }
     }
 }
 
@@ -98,31 +160,60 @@ impl SongStructure {
     pub fn build(form: SongForm) -> Self {
         let template: &[(&str, u16)] = match form {
             SongForm::Compact => &[
-                ("Intro", 4), ("Verse 1", 4), ("Build-up", 4), ("Chorus", 4),
-                ("Verse 2", 4), ("Bridge", 4), ("Final Chorus", 4), ("Outro", 4),
+                ("Intro", 4),
+                ("Verse 1", 4),
+                ("Build-up", 4),
+                ("Chorus", 4),
+                ("Verse 2", 4),
+                ("Bridge", 4),
+                ("Final Chorus", 4),
+                ("Outro", 4),
             ],
             SongForm::Standard => &[
-                ("Intro", 4), ("Verse 1", 8), ("Build-up", 4), ("Chorus", 8),
-                ("Verse 2", 8), ("Bridge", 4), ("Final Chorus", 8), ("Outro", 4),
+                ("Intro", 4),
+                ("Verse 1", 8),
+                ("Build-up", 4),
+                ("Chorus", 8),
+                ("Verse 2", 8),
+                ("Bridge", 4),
+                ("Final Chorus", 8),
+                ("Outro", 4),
             ],
             SongForm::Extended => &[
-                ("Intro", 4), ("Verse 1", 8), ("Build-up", 4), ("Chorus", 8),
-                ("Verse 2", 8), ("Build-up 2", 4), ("Chorus 2", 8),
-                ("Bridge", 8), ("Final Chorus", 8), ("Outro", 4),
+                ("Intro", 4),
+                ("Verse 1", 8),
+                ("Build-up", 4),
+                ("Chorus", 8),
+                ("Verse 2", 8),
+                ("Build-up 2", 4),
+                ("Chorus 2", 8),
+                ("Bridge", 8),
+                ("Final Chorus", 8),
+                ("Outro", 4),
             ],
         };
 
         let mut cursor = 0_u16;
-        let sections = template.iter().map(|&(name, bars)| {
-            let section = SongSection { name, start_bar: cursor, end_bar: cursor + bars };
-            cursor += bars;
-            section
-        }).collect();
+        let sections = template
+            .iter()
+            .map(|&(name, bars)| {
+                let section = SongSection {
+                    name,
+                    start_bar: cursor,
+                    end_bar: cursor + bars,
+                };
+                cursor += bars;
+                section
+            })
+            .collect();
 
-        Self { form, sections, total_bars: cursor }
+        Self {
+            form,
+            sections,
+            total_bars: cursor,
+        }
     }
 }
-
 
 /// Requested song length, constrained to the supported one-to-four-minute range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,19 +227,19 @@ impl SongDuration {
     pub const STEP_SECONDS: u16 = 15;
 
     /// Available user-selectable lengths: 1:00, 1:15, ... 4:00.
-    pub const PRESETS: [u16; 13] = [
-        60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240,
-    ];
+    pub const PRESETS: [u16; 13] = [60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240];
 
     pub fn new(seconds: u16) -> Self {
-        Self { seconds: seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS) }
+        Self {
+            seconds: seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS),
+        }
     }
 
     /// Selects the nearest available preset for an arbitrary requested duration.
     pub fn from_seconds(seconds: u16) -> Self {
         let clamped = seconds.clamp(Self::MIN_SECONDS, Self::MAX_SECONDS);
-        let nearest = ((clamped - Self::MIN_SECONDS + Self::STEP_SECONDS / 2)
-            / Self::STEP_SECONDS) * Self::STEP_SECONDS;
+        let nearest = ((clamped - Self::MIN_SECONDS + Self::STEP_SECONDS / 2) / Self::STEP_SECONDS)
+            * Self::STEP_SECONDS;
         Self::new(Self::MIN_SECONDS + nearest)
     }
 
@@ -157,7 +248,9 @@ impl SongDuration {
         Self::new(u16::from(minutes.clamp(1, 4)) * 60)
     }
 
-    pub fn seconds(self) -> u16 { self.seconds }
+    pub fn seconds(self) -> u16 {
+        self.seconds
+    }
 
     /// Display label suitable for a duration picker.
     pub fn label(self) -> String {
@@ -171,23 +264,37 @@ impl SongDuration {
 }
 
 impl Default for SongDuration {
-    fn default() -> Self { Self::new(180) }
+    fn default() -> Self {
+        Self::new(180)
+    }
 }
 
 impl SongStructure {
     /// Builds a full-song section plan sized for the requested duration.
     /// Whole-bar quantization means actual duration may differ slightly.
     pub fn for_duration(duration: SongDuration, tempo_bpm: f64, beats_per_bar: u8) -> Self {
-        let bpm = if tempo_bpm.is_finite() { tempo_bpm.clamp(20.0, 400.0) } else { 120.0 };
+        let bpm = if tempo_bpm.is_finite() {
+            tempo_bpm.clamp(20.0, 400.0)
+        } else {
+            120.0
+        };
         let beats = f64::from(beats_per_bar.max(1));
         let bar_seconds = 60.0 * beats / bpm;
-        let total_bars = (f64::from(duration.seconds()) / bar_seconds).round()
-            .max(8.0).min(f64::from(u16::MAX)) as u16;
+        let total_bars = (f64::from(duration.seconds()) / bar_seconds)
+            .round()
+            .max(8.0)
+            .min(f64::from(u16::MAX)) as u16;
 
         const WEIGHTS: [u16; 8] = [1, 2, 1, 2, 2, 1, 2, 1];
         const NAMES: [&str; 8] = [
-            "Intro", "Verse 1", "Build-up", "Chorus",
-            "Verse 2", "Bridge", "Final Chorus", "Outro",
+            "Intro",
+            "Verse 1",
+            "Build-up",
+            "Chorus",
+            "Verse 2",
+            "Bridge",
+            "Final Chorus",
+            "Outro",
         ];
         let weight_sum: u32 = WEIGHTS.iter().map(|&w| u32::from(w)).sum();
         let mut cursor = 0_u16;
@@ -202,19 +309,30 @@ impl SongStructure {
             };
             let remaining = (NAMES.len() - index - 1) as u16;
             let end = end.max(cursor + 1).min(total_bars - remaining);
-            sections.push(SongSection { name: NAMES[index], start_bar: cursor, end_bar: end });
+            sections.push(SongSection {
+                name: NAMES[index],
+                start_bar: cursor,
+                end_bar: end,
+            });
             cursor = end;
         }
 
-        Self { form: SongForm::Standard, sections, total_bars }
+        Self {
+            form: SongForm::Standard,
+            sections,
+            total_bars,
+        }
     }
 
     pub fn estimated_duration_seconds(&self, tempo_bpm: f64, beats_per_bar: u8) -> f64 {
-        let bpm = if tempo_bpm.is_finite() { tempo_bpm.clamp(20.0, 400.0) } else { 120.0 };
+        let bpm = if tempo_bpm.is_finite() {
+            tempo_bpm.clamp(20.0, 400.0)
+        } else {
+            120.0
+        };
         f64::from(self.total_bars) * f64::from(beats_per_bar.max(1)) * 60.0 / bpm
     }
 }
-
 
 /// The generated parts of a full arrangement. Each vector is intended for its own MIDI lane.
 #[derive(Clone, Debug, PartialEq)]
@@ -261,7 +379,11 @@ impl Default for LayerSelection {
 
 /// Generates a complete drum part over every section, with restrained intro/bridge and stronger choruses.
 /// Pad indices follow the default drum kit: kick 0, snare 1, clap 2, closed hat 3, open hat 4.
-pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8, seed: u64) -> Vec<crate::song::Event> {
+pub fn generate_drum_events(
+    structure: &SongStructure,
+    beats_per_bar: u8,
+    seed: u64,
+) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
     let mut events = Vec::new();
@@ -346,14 +468,18 @@ pub fn generate_piano_events(
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
         let degree = degrees[(usize::from(bar) + seed as usize % degrees.len()) % degrees.len()];
-        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let section = structure
+            .sections
+            .iter()
+            .find(|s| bar >= s.start_bar && bar < s.end_bar);
         let sparse = section.is_some_and(|s| {
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
         });
         let chord = [degree, degree + 2, degree + 4];
         for scale_index in chord {
-            let key = (60 + i32::from(root % 12)
+            let key = (60
+                + i32::from(root % 12)
                 + (scale_index / 7) as i32 * 12
                 + scale[scale_index % 7])
                 .clamp(0, 127) as u8;
@@ -381,8 +507,16 @@ pub fn generate_bass_events(
 ) -> Vec<crate::song::Event> {
     use crate::song::{Event, PPQ};
     let bpb = u32::from(beats_per_bar.max(1));
-    let scale = if minor { [0, 2, 3, 5, 7, 8, 10] } else { [0, 2, 4, 5, 7, 9, 11] };
-    let degrees = if minor { [0_usize, 5, 2, 6] } else { [0_usize, 4, 5, 3] };
+    let scale = if minor {
+        [0, 2, 3, 5, 7, 8, 10]
+    } else {
+        [0, 2, 4, 5, 7, 9, 11]
+    };
+    let degrees = if minor {
+        [0_usize, 5, 2, 6]
+    } else {
+        [0_usize, 4, 5, 3]
+    };
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
         let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
@@ -485,11 +619,17 @@ pub fn create_channels(
             GeneratedInstrument::Synth(synth) => ChannelKind::Synth(synth),
             GeneratedInstrument::Plugin(_) => ChannelKind::Instrument,
         };
-        let Some(channel_index) = song.insert_channel(song.channels.len(), kind) else { return; };
+        let Some(channel_index) = song.insert_channel(song.channels.len(), kind) else {
+            return;
+        };
         let mut failed = false;
         {
             let channel = &mut song.channels[channel_index];
-            if channel.lanes.first().is_none_or(|lane| lane.kind != lane_kind) {
+            if channel
+                .lanes
+                .first()
+                .is_none_or(|lane| lane.kind != lane_kind)
+            {
                 failed = true;
             } else {
                 if let GeneratedInstrument::Plugin(uid) = instrument {
@@ -514,16 +654,32 @@ pub fn create_channels(
     };
 
     if selection.drums {
-        add(GeneratedInstrument::Drums, crate::song::LaneKind::Drums, parts.drums);
+        add(
+            GeneratedInstrument::Drums,
+            crate::song::LaneKind::Drums,
+            parts.drums,
+        );
     }
     if selection.bass {
-        add(selection.bass_instrument, crate::song::LaneKind::Notes, parts.bass);
+        add(
+            selection.bass_instrument,
+            crate::song::LaneKind::Notes,
+            parts.bass,
+        );
     }
     if selection.piano {
-        add(selection.piano_instrument, crate::song::LaneKind::Notes, parts.piano);
+        add(
+            selection.piano_instrument,
+            crate::song::LaneKind::Notes,
+            parts.piano,
+        );
     }
     if selection.melody {
-        add(selection.melody_instrument, crate::song::LaneKind::Notes, parts.melody);
+        add(
+            selection.melody_instrument,
+            crate::song::LaneKind::Notes,
+            parts.melody,
+        );
     }
     if !created.is_empty() {
         for section in &structure.sections {
@@ -540,10 +696,10 @@ pub fn create_channels(
 mod tests {
     use super::*;
 
-
     #[test]
     fn prompt_parser_extracts_genre_mood_and_tempo() {
-        let profile = PromptProfile::parse("Dark melodic drum and bass, 174 BPM, powerful and energetic");
+        let profile =
+            PromptProfile::parse("Dark melodic drum and bass, 174 BPM, powerful and energetic");
         assert_eq!(profile.genre, Genre::DrumAndBass);
         assert_eq!(profile.minor, Some(true));
         assert_eq!(profile.tempo_bpm, Some(174));
@@ -572,12 +728,17 @@ mod tests {
         for seconds in [60, 90, 180, 240] {
             let structure = SongStructure::for_duration(SongDuration::new(seconds), 120.0, 4);
             assert_eq!(structure.sections.first().unwrap().start_bar, 0);
-            assert_eq!(structure.sections.last().unwrap().end_bar, structure.total_bars);
+            assert_eq!(
+                structure.sections.last().unwrap().end_bar,
+                structure.total_bars
+            );
             assert!(structure.sections.iter().all(|s| s.bars() > 0));
             for pair in structure.sections.windows(2) {
                 assert_eq!(pair[0].end_bar, pair[1].start_bar);
             }
-            assert!((structure.estimated_duration_seconds(120.0, 4) - f64::from(seconds)).abs() <= 1.0);
+            assert!(
+                (structure.estimated_duration_seconds(120.0, 4) - f64::from(seconds)).abs() <= 1.0
+            );
         }
     }
 
@@ -590,10 +751,30 @@ mod tests {
         assert!(!parts.piano.is_empty());
         assert!(!parts.bass.is_empty());
         assert!(!parts.melody.is_empty());
-        assert!(parts.drums.iter().all(|event| matches!(event, Event::Drum { .. })));
-        assert!(parts.piano.iter().all(|event| matches!(event, Event::Note { .. })));
-        assert!(parts.bass.iter().all(|event| matches!(event, Event::Note { .. })));
-        assert!(parts.melody.iter().all(|event| matches!(event, Event::Note { .. })));
+        assert!(
+            parts
+                .drums
+                .iter()
+                .all(|event| matches!(event, Event::Drum { .. }))
+        );
+        assert!(
+            parts
+                .piano
+                .iter()
+                .all(|event| matches!(event, Event::Note { .. }))
+        );
+        assert!(
+            parts
+                .bass
+                .iter()
+                .all(|event| matches!(event, Event::Note { .. }))
+        );
+        assert!(
+            parts
+                .melody
+                .iter()
+                .all(|event| matches!(event, Event::Note { .. }))
+        );
         let end_tick = u32::from(structure.total_bars) * 4 * crate::song::PPQ;
         assert!(parts.drums.iter().all(|event| event.pos() < end_tick));
         assert!(parts.piano.iter().all(|event| event.pos() < end_tick));
@@ -605,7 +786,14 @@ mod tests {
         let mut song = crate::song::Song::default();
         let original_count = song.channels.len();
         let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
-        let created = create_channels(&mut song, &structure, 0, false, LayerSelection::default(), 0);
+        let created = create_channels(
+            &mut song,
+            &structure,
+            0,
+            false,
+            LayerSelection::default(),
+            0,
+        );
         assert_eq!(created.len(), 4);
         assert_eq!(song.channels.len(), original_count + 4);
         assert_eq!(song.channels[created[0]].kind, ChannelKind::Drums);
