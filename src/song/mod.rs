@@ -14,6 +14,8 @@ pub mod scales;
 mod tempo;
 // Song sections (#80).
 mod section;
+// Full-song structure planning (initial generator foundation).
+pub mod full_song;
 
 pub use channel::{Channel, ChannelParams};
 pub use drum_kit::{DrumKit, SamplerSlot};
