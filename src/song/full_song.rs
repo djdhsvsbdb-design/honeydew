@@ -642,10 +642,10 @@ pub fn create_channels(
             {
                 failed = true;
             } else {
-                if let GeneratedInstrument::Plugin(uid) = instrument {
-                    if crate::plugins::add(&mut channel.rack, channel.id, uid, 0).is_err() {
-                        failed = true;
-                    }
+                if let GeneratedInstrument::Plugin(uid) = instrument
+                    && crate::plugins::add(&mut channel.rack, channel.id, uid, 0).is_err()
+                {
+                    failed = true;
                 }
                 if !failed {
                     let clip = channel.lanes[0].add_clip(0, loop_beats);
