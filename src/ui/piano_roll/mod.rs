@@ -2108,12 +2108,18 @@ impl PianoRoll {
                             song.tempo_bpm,
                             song.time_sig.beats_per_bar,
                         );
-                        let root = song.key_root.clamp(0, 11) as u8;
+                        let settings = panel.settings();
+                        let root = settings.key.unwrap_or(song.key_root.clamp(0, 11) as u8);
+                        let scale = settings.scale.map(usize::from)
+                            .unwrap_or_else(|| crate::song::scales::scale_from_stored(song.key_scale));
+                        let scale_name = crate::song::scales::SCALES.get(scale).copied().unwrap_or("Major");
+                        let minor = scale_name.starts_with("Minor")
+                            || matches!(scale_name, "Dorian" | "Phrygian" | "Locrian");
                         let created = crate::song::full_song::create_channels(
                             song,
                             &structure,
                             root,
-                            false,
+                            minor,
                             panel.layer_selection(),
                         );
                         if !created.is_empty() {
