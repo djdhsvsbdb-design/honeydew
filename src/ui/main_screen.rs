@@ -290,7 +290,7 @@ pub struct ScreenActions {
     pub step: Option<Step>,
     /// SOLO CLIP was clicked.
     pub preview: bool,
-    /// The transport bar's GENERATE was clicked (the piano roll only, PR #87): open its `Generate` panel.
+    /// The main-screen GENERATE shortcut was clicked: open the selected channel's Piano Roll generator.
     pub generate: bool,
     /// A ruler's tap this frame, in any view ([`AppCtx::set_playhead`]): the playhead's song tick.
     pub playhead: Option<u64>,
@@ -1225,6 +1225,29 @@ impl MainScreen {
         let text = cx.theme.colors.text.to_color32();
         self.show_keyboard_button(ui, cx, regions.screen);
         let (screen, area) = (regions.screen, regions.area);
+
+        // Main-screen GENERATE shortcut: kept in the free upper-left corner, opposite the app logo.
+        let generator_size = m.u(PANEL_BUTTON_W);
+        let generator = Rect::from_min_size(
+            pos2(screen.left() + m.u(0.2), screen.top() + m.u(0.2)),
+            Vec2::splat(generator_size),
+        );
+        let generator_hit = Rect::from_min_max(
+            generator.min,
+            pos2(generator.right() + m.u(0.5), generator.bottom() + m.u(0.3)),
+        );
+        let generate = open_panel_button(
+            ui,
+            Id::new("main_screen_generate"),
+            (generator, generator_hit),
+            (IconId::Randomize, text),
+            cx,
+        );
+        crate::ui::tooltip::tip(ui, generator_hit, "Generate", None);
+        if generate.clicked() {
+            actions.generate = true;
+        }
+
         let rack_open = regions.rack.left() < area.right();
         let mut place = tab_place;
 
@@ -1851,22 +1874,11 @@ impl MainScreen {
         if button(ui, "keyboard_settings", slots.keys, strip).clicked() {
             nav = Some(Nav::Toggle(Overlay::KeyboardSettings));
         }
-        // PR #87: GENERATE (`IconId::Randomize`), in the piano roll only, at the scale room's right end: it opens the
-        // roll's `Generate` panel.
-        let generate = slots
-            .generate
-            .filter(|_| matches!(input.view, View::PianoRoll(_)));
-        if let Some(at) = generate {
-            let look = BarButton::icon(IconId::Randomize).caption("GENERATE");
-            actions.generate = button(ui, "generate", at, look).clicked();
-        }
+        // The generator now lives on the main screen's upper-left corner; keep the scale name unobstructed.
         if let Some(name) = input.scale_name {
-            // No control: a tap there is a tap on the empty bar. Its room ends where GENERATE's starts.
             let font = m.font_id(FontSize::Pt8);
             let ink = text.gamma_multiply(SCALE_ALPHA);
-            let painter = ui.painter();
-            let room = generate.map_or(slots.scale, |at| slots.scale.with_max_x(at.left()));
-            widgets::truncated(painter, room, Align2::LEFT_CENTER, name, font, ink, 5);
+            widgets::truncated(ui.painter(), slots.scale, Align2::LEFT_CENTER, name, font, ink, 5);
         }
 
         // Centre group: REC, REWIND, play, tempo, CONTROL.
