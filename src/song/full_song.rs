@@ -467,7 +467,7 @@ pub fn generate_piano_events(
     let degrees: [usize; 4] = if minor { [0, 5, 2, 6] } else { [0, 4, 5, 3] };
     let mut events = Vec::new();
     for bar in 0..structure.total_bars {
-        let degree = degrees[(usize::from(bar) + seed as usize % degrees.len()) % degrees.len()];
+        let degree = degrees[usize::from(bar) % degrees.len()];
         let section = structure
             .sections
             .iter()
@@ -527,7 +527,7 @@ pub fn generate_bass_events(
             let name = s.name.to_ascii_lowercase();
             name.contains("intro") || name.contains("bridge") || name.contains("outro")
         });
-        let degree = degrees[(usize::from(bar) + seed as usize % degrees.len()) % degrees.len()];
+        let degree = degrees[usize::from(bar) % degrees.len()];
         let key = (36 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
         let start = u32::from(bar) * bpb * PPQ;
         let positions: &[u32] = if sparse || bpb < 4 { &[0] } else { &[0, 2] };
@@ -574,8 +574,14 @@ pub fn generate_melody_events(
         let steps: u32 = if sparse { 2 } else { 4 };
         for step in 0..steps {
             let beat = step * bpb / steps;
-            let degree = (usize::from(bar) + step as usize * 2 + seed as usize % 7) % 7;
-            let key = (72 + i32::from(root % 12) + scale[degree]).clamp(0, 127) as u8;
+            let phrase = (usize::from(bar) % 2) * 4 + step as usize;
+            // A recurring two-bar motif gives the melody a recognizable identity instead of
+            // choosing unrelated scale notes on every beat. Seed changes the motif's starting degree.
+            const MOTIF: [usize; 8] = [0, 2, 4, 2, 1, 3, 5, 3];
+            let motif_degree = (MOTIF[phrase] + (seed as usize % 3)) % 7;
+            let chorus = section.is_some_and(|s| s.name.to_ascii_lowercase().contains("chorus"));
+            let octave = if chorus { 12 } else { 0 };
+            let key = (72 + octave + i32::from(root % 12) + scale[motif_degree]).clamp(0, 127) as u8;
             events.push(Event::Note {
                 pos: start + beat * PPQ,
                 len_beats: 0.45,
@@ -615,6 +621,17 @@ pub fn create_channels(
     seed: u64,
 ) -> Vec<usize> {
     use crate::song::ChannelKind;
+    if !(selection.drums || selection.bass || selection.piano || selection.melody) {
+        return Vec::new();
+    }
+    // Generated channels are explicitly tagged so the next full-song generation can replace
+    // only its own previous output and leave the user's hand-made tracks untouched.
+    let mut previous: Vec<usize> = song.channels.iter().enumerate()
+        .filter_map(|(index, channel)| (index > 0 && channel.name.starts_with("AI Generated - ")).then_some(index))
+        .collect();
+    previous.sort_unstable_by(|a, b| b.cmp(a));
+    for index in previous { song.delete_channel(index); }
+
     let bpb = song.time_sig.bar_beats();
     let parts = generate_parts(structure, root, minor, bpb as u8, seed);
     let loop_beats = f64::from(structure.total_bars) * f64::from(bpb);
@@ -635,6 +652,7 @@ pub fn create_channels(
         let mut failed = false;
         {
             let channel = &mut song.channels[channel_index];
+            channel.name = format!("AI Generated - {}", channel.name);
             if channel
                 .lanes
                 .first()
@@ -822,6 +840,18 @@ mod tests {
             song.channels[i].lanes[0].kind == LaneKind::Notes
                 && !song.channels[i].lanes[0].clips[0].events.is_empty()
         }));
+    }
+
+    #[test]
+    fn generating_again_replaces_only_previous_ai_generated_channels() {
+        let mut song = crate::song::Song::default();
+        let user_channel = song.insert_channel(song.channels.len(), crate::song::ChannelKind::Audio).unwrap();
+        song.channels[user_channel].name = "My own track".to_owned();
+        let structure = SongStructure::for_duration(SongDuration::new(60), 120.0, 4);
+        create_channels(&mut song, &structure, 0, false, LayerSelection::default(), 11);
+        create_channels(&mut song, &structure, 0, false, LayerSelection::default(), 22);
+        assert_eq!(song.channels.iter().filter(|c| c.name.starts_with("AI Generated - ")).count(), 4);
+        assert!(song.channels.iter().any(|c| c.name == "My own track"));
     }
 
     #[test]
