@@ -17,8 +17,8 @@
 use std::hash::{BuildHasher, RandomState};
 
 use eframe::egui::{
-    self, Align2, Area, Color32, Context, Id, LayerId, Order, Rect, ScrollArea, Sense, Ui, UiBuilder,
-    pos2, scroll_area::ScrollBarVisibility, vec2,
+    self, Align2, Area, Color32, Context, Id, LayerId, Order, Rect, ScrollArea, Sense, Ui,
+    UiBuilder, pos2, scroll_area::ScrollBarVisibility, vec2,
 };
 
 use super::compose::{
@@ -126,7 +126,11 @@ impl Panel {
 
     /// The natural-language brief currently entered in the panel.
     pub(crate) fn description_text(&self) -> String {
-        let end = self.description.iter().position(|&byte| byte == 0).unwrap_or(self.description.len());
+        let end = self
+            .description
+            .iter()
+            .position(|&byte| byte == 0)
+            .unwrap_or(self.description.len());
         String::from_utf8_lossy(&self.description[..end]).into_owned()
     }
 
@@ -312,7 +316,10 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     };
     const BAR_LABELS: [&str; 4] = ["1", "2", "4", "8"];
     const TARGETS: [&str; 2] = ["Current clip", "New full song"];
-    const SONG_DURATIONS: [&str; 13] = ["1:00", "1:15", "1:30", "1:45", "2:00", "2:15", "2:30", "2:45", "3:00", "3:15", "3:30", "3:45", "4:00"];
+    const SONG_DURATIONS: [&str; 13] = [
+        "1:00", "1:15", "1:30", "1:45", "2:00", "2:15", "2:30", "2:45", "3:00", "3:15", "3:30",
+        "3:45", "4:00",
+    ];
     let keys: Vec<&str> = std::iter::once("Project")
         .chain(KEYS.iter().copied())
         .collect();
@@ -391,9 +398,12 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         pos2(r.right(), r.bottom()),
     );
     let mut description = panel.description_text();
-    ui.put(prompt_rect, egui::TextEdit::singleline(&mut description)
-        .hint_text("e.g. dark melodic DnB, deep bass, energetic drop")
-        .desired_width(prompt_rect.width()));
+    ui.put(
+        prompt_rect,
+        egui::TextEdit::singleline(&mut description)
+            .hint_text("e.g. dark melodic DnB, deep bass, energetic drop")
+            .desired_width(prompt_rect.width()),
+    );
     panel.description = [0; 256];
     let bytes = description.as_bytes();
     let len = bytes.len().min(panel.description.len() - 1);
@@ -403,7 +413,14 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     panel.target = dropdown(ui, r, "target", &TARGETS, panel.target, None);
     let r = next(CHOICE);
     label(ui, r, "Song length", text);
-    panel.song_duration = dropdown(ui, r, "song duration", &SONG_DURATIONS, panel.song_duration, Some(7));
+    panel.song_duration = dropdown(
+        ui,
+        r,
+        "song duration",
+        &SONG_DURATIONS,
+        panel.song_duration,
+        Some(7),
+    );
     let r = next(CHOICE);
     label(ui, r, "Layers", text);
     let layer_width = m.u(3.0);
@@ -414,29 +431,60 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         ("Bass", &mut panel.bass),
         ("Piano", &mut panel.piano),
         ("Lead", &mut panel.melody),
-    ].into_iter().enumerate() {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let x = start_x + index as f32 * (layer_width + layer_gap);
         let rect = Rect::from_min_size(
             pos2(x, r.center().y - m.u(BUTTON[1]) / 2.0),
             vec2(layer_width, m.u(BUTTON[1])),
         );
-        let button_label = if *selected { format!("{name} +") } else { name.to_owned() };
+        let button_label = if *selected {
+            format!("{name} +")
+        } else {
+            name.to_owned()
+        };
         let button = dialog::button(id.with(("layer", index)), rect, &button_label, c, m);
         if widgets::button(ui, cx, &button, true).clicked() {
             *selected = !*selected;
         }
     }
     let instruments = instrument_choices();
-    let instrument_labels: Vec<&str> = instruments.iter().map(|(label, _)| label.as_str()).collect();
+    let instrument_labels: Vec<&str> = instruments
+        .iter()
+        .map(|(label, _)| label.as_str())
+        .collect();
     let r = next(CHOICE);
     label(ui, r, "Bass instrument", text);
-    panel.bass_instrument = dropdown(ui, r, "bass instrument", &instrument_labels, panel.bass_instrument, None);
+    panel.bass_instrument = dropdown(
+        ui,
+        r,
+        "bass instrument",
+        &instrument_labels,
+        panel.bass_instrument,
+        None,
+    );
     let r = next(CHOICE);
     label(ui, r, "Piano instrument", text);
-    panel.piano_instrument = dropdown(ui, r, "piano instrument", &instrument_labels, panel.piano_instrument, None);
+    panel.piano_instrument = dropdown(
+        ui,
+        r,
+        "piano instrument",
+        &instrument_labels,
+        panel.piano_instrument,
+        None,
+    );
     let r = next(CHOICE);
     label(ui, r, "Lead instrument", text);
-    panel.melody_instrument = dropdown(ui, r, "lead instrument", &instrument_labels, panel.melody_instrument, None);
+    panel.melody_instrument = dropdown(
+        ui,
+        r,
+        "lead instrument",
+        &instrument_labels,
+        panel.melody_instrument,
+        None,
+    );
 }
 
 pub(crate) fn instrument_choices() -> Vec<(String, crate::song::full_song::GeneratedInstrument)> {
@@ -444,12 +492,14 @@ pub(crate) fn instrument_choices() -> Vec<(String, crate::song::full_song::Gener
     crate::ui::add_channel_menu::add_channel_menu()
         .into_iter()
         .filter_map(|item| match item.id {
-            Some(AddChannelPick::Kind(crate::song::ChannelKind::Synth(synth))) => {
-                Some((item.label.into_owned(), crate::song::full_song::GeneratedInstrument::Synth(synth)))
-            }
-            Some(AddChannelPick::Plugin(uid)) => {
-                Some((item.label.into_owned(), crate::song::full_song::GeneratedInstrument::Plugin(uid)))
-            }
+            Some(AddChannelPick::Kind(crate::song::ChannelKind::Synth(synth))) => Some((
+                item.label.into_owned(),
+                crate::song::full_song::GeneratedInstrument::Synth(synth),
+            )),
+            Some(AddChannelPick::Plugin(uid)) => Some((
+                item.label.into_owned(),
+                crate::song::full_song::GeneratedInstrument::Plugin(uid),
+            )),
             _ => None,
         })
         .collect()
@@ -461,16 +511,30 @@ impl Panel {
         instruments: &[(String, crate::song::full_song::GeneratedInstrument)],
     ) -> crate::song::full_song::LayerSelection {
         let pick = |index: usize, fallback| {
-            instruments.get(index).map(|(_, instrument)| *instrument).unwrap_or(fallback)
+            instruments
+                .get(index)
+                .map(|(_, instrument)| *instrument)
+                .unwrap_or(fallback)
         };
         crate::song::full_song::LayerSelection {
             drums: self.drums,
             bass: self.bass,
             piano: self.piano,
             melody: self.melody,
-            bass_instrument: pick(self.bass_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::TransistorBass)),
-            piano_instrument: pick(self.piano_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::MiniSynth)),
-            melody_instrument: pick(self.melody_instrument, crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::SuperSaw)),
+            bass_instrument: pick(
+                self.bass_instrument,
+                crate::song::full_song::GeneratedInstrument::Synth(
+                    crate::song::SynthKind::TransistorBass,
+                ),
+            ),
+            piano_instrument: pick(
+                self.piano_instrument,
+                crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::MiniSynth),
+            ),
+            melody_instrument: pick(
+                self.melody_instrument,
+                crate::song::full_song::GeneratedInstrument::Synth(crate::song::SynthKind::SuperSaw),
+            ),
         }
     }
 }
