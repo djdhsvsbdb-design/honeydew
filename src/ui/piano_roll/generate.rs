@@ -44,7 +44,7 @@ const LABEL_W: f32 = 4.5;
 /// As the Humanize panel's: three fit the 13 U row with their gaps.
 const BUTTON: [f32; 2] = [3.5, 1.0];
 /// The scrolling rows' height: three headers and eleven choice rows.
-const BODY: f32 = 3.0 * HEADER + 11.0 * CHOICE;
+const BODY: f32 = 4.0 * HEADER + 13.0 * CHOICE;
 /// The whole panel, when the screen has room.
 const HEIGHT: f32 = 2.0 * MARGIN + TITLE + BODY + MARGIN + CHOICE;
 /// Seeds run 0..SEEDS.
@@ -74,6 +74,10 @@ pub(crate) struct Panel {
     rests: usize,
     arp: usize,
     chords: usize,
+    /// 0: current clip, 1: create a new full-song arrangement.
+    target: usize,
+    /// Index into `SongDuration::choices()`.
+    song_duration: usize,
 }
 
 /// How the panel closed.
@@ -98,6 +102,8 @@ impl Panel {
             rests: 1,
             arp: 0,
             chords: 0,
+            target: 0,
+            song_duration: 8,
         }
     }
 
@@ -272,6 +278,8 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
         widgets::button(ui, cx, &b, true).clicked()
     };
     const BAR_LABELS: [&str; 4] = ["1", "2", "4", "8"];
+    const TARGETS: [&str; 2] = ["Current clip", "New full song"];
+    const SONG_DURATIONS: [&str; 13] = ["1:00", "1:15", "1:30", "1:45", "2:00", "2:15", "2:30", "2:45", "3:00", "3:15", "3:30", "3:45", "4:00"];
     let keys: Vec<&str> = std::iter::once("Project")
         .chain(KEYS.iter().copied())
         .collect();
@@ -341,4 +349,12 @@ fn rows(ui: &mut Ui, cx: &UiCtx, id: Id, column: Rect, ink: Color32, panel: &mut
     let r = next(CHOICE);
     label(ui, r, "Chords", text);
     panel.chords = dropdown(ui, r, "chords", &CHORD_MODES, panel.chords, None);
+
+    label(ui, next(HEADER), "Song generation", ink.gamma_multiply(DIM));
+    let r = next(CHOICE);
+    label(ui, r, "Target", text);
+    panel.target = dropdown(ui, r, "target", &TARGETS, panel.target, None);
+    let r = next(CHOICE);
+    label(ui, r, "Song length", text);
+    panel.song_duration = dropdown(ui, r, "song duration", &SONG_DURATIONS, panel.song_duration, Some(7));
 }
