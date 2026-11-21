@@ -2502,9 +2502,9 @@ impl HoneydewApp {
                 // The main-screen GENERATE shortcut opens the selected channel's Piano Roll and its generator.
                 // The roll's existing clip-based generation logic remains unchanged.
                 if actions.generate {
-                    let channel = self.selected_channel;
+                    let channel = *app.selected;
                     self.nav.view = View::PianoRoll(channel);
-                    self.slots.piano_roll.open_generate(ui.ctx(), &self.song, channel);
+                    self.slots.piano_roll.open_generate(ui.ctx(), &*app.song, channel);
                 }
                 navs.extend(actions.nav.take());
                 actions.playhead = app.playhead;
