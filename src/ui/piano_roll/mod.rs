@@ -2120,7 +2120,7 @@ impl PianoRoll {
                             &structure,
                             root,
                             minor,
-                            panel.layer_selection(),
+                            panel.layer_selection(&generate::instrument_choices()),
                         );
                         if !created.is_empty() {
                             actions.push(PianoRollAction::SongEdited { final_edit: true });
