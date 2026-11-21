@@ -167,6 +167,13 @@ pub struct GeneratedParts {
     pub melody: Vec<crate::song::Event>,
 }
 
+/// The instrument to place on a generated notes channel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeneratedInstrument {
+    Synth(crate::song::SynthKind),
+    Plugin(&'static str),
+}
+
 /// Which generated instrument layers should become new project channels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LayerSelection {
@@ -174,9 +181,9 @@ pub struct LayerSelection {
     pub bass: bool,
     pub piano: bool,
     pub melody: bool,
-    pub bass_synth: crate::song::SynthKind,
-    pub piano_synth: crate::song::SynthKind,
-    pub melody_synth: crate::song::SynthKind,
+    pub bass_instrument: GeneratedInstrument,
+    pub piano_instrument: GeneratedInstrument,
+    pub melody_instrument: GeneratedInstrument,
 }
 
 impl Default for LayerSelection {
@@ -186,9 +193,9 @@ impl Default for LayerSelection {
             bass: true,
             piano: true,
             melody: true,
-            bass_synth: crate::song::SynthKind::TransistorBass,
-            piano_synth: crate::song::SynthKind::MiniSynth,
-            melody_synth: crate::song::SynthKind::SuperSaw,
+            bass_instrument: GeneratedInstrument::Synth(crate::song::SynthKind::TransistorBass),
+            piano_instrument: GeneratedInstrument::Synth(crate::song::SynthKind::MiniSynth),
+            melody_instrument: GeneratedInstrument::Synth(crate::song::SynthKind::SuperSaw),
         }
     }
 }
@@ -400,31 +407,50 @@ pub fn create_channels(
     }
     let mut created = Vec::new();
 
-    let mut add = |kind: ChannelKind, lane_kind, events: Vec<crate::song::Event>| {
+    let mut add = |instrument: GeneratedInstrument, lane_kind, events: Vec<crate::song::Event>| {
+        let kind = match instrument {
+            GeneratedInstrument::Synth(synth) => ChannelKind::Synth(synth),
+            GeneratedInstrument::Plugin(_) => ChannelKind::Instrument,
+        };
         let Some(channel_index) = song.insert_channel(song.channels.len(), kind) else { return; };
-        let channel = &mut song.channels[channel_index];
-        if channel.lanes[0].kind != lane_kind {
-            return;
+        let mut failed = false;
+        {
+            let channel = &mut song.channels[channel_index];
+            if channel.lanes.first().is_none_or(|lane| lane.kind != lane_kind) {
+                failed = true;
+            } else {
+                if let GeneratedInstrument::Plugin(uid) = instrument {
+                    if crate::plugins::add(&mut channel.rack, channel.id, uid, 0).is_err() {
+                        failed = true;
+                    }
+                }
+                if !failed {
+                    let clip = channel.lanes[0].add_clip(0, loop_beats);
+                    clip.events = events;
+                    clip.fit_loop(bpb);
+                    // The internal loop is bar-quantized; the visible clip ends at the requested arrangement length.
+                    clip.visible_len_beats = loop_beats;
+                }
+            }
         }
-        let clip = channel.lanes[0].add_clip(0, loop_beats);
-        clip.events = events;
-        clip.fit_loop(bpb);
-        // The internal loop is bar-quantized; the visible clip ends at the requested arrangement length.
-        clip.visible_len_beats = loop_beats;
-        created.push(channel_index);
+        if failed {
+            song.delete_channel(channel_index);
+        } else {
+            created.push(channel_index);
+        }
     };
 
     if selection.drums {
         add(ChannelKind::Drums, crate::song::LaneKind::Drums, parts.drums);
     }
     if selection.bass {
-        add(ChannelKind::Synth(selection.bass_synth), crate::song::LaneKind::Notes, parts.bass);
+        add(selection.bass_instrument, crate::song::LaneKind::Notes, parts.bass);
     }
     if selection.piano {
-        add(ChannelKind::Synth(selection.piano_synth), crate::song::LaneKind::Notes, parts.piano);
+        add(selection.piano_instrument, crate::song::LaneKind::Notes, parts.piano);
     }
     if selection.melody {
-        add(ChannelKind::Synth(selection.melody_synth), crate::song::LaneKind::Notes, parts.melody);
+        add(selection.melody_instrument, crate::song::LaneKind::Notes, parts.melody);
     }
     created
 }
