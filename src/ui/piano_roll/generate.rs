@@ -130,6 +130,16 @@ impl Panel {
         String::from_utf8_lossy(&self.description[..end]).into_owned()
     }
 
+    /// Whether generation should create a new full-song arrangement.
+    pub(crate) fn is_full_song_target(&self) -> bool {
+        self.target == 1
+    }
+
+    /// Selected full-song duration preset index.
+    pub(crate) fn song_duration_index(&self) -> usize {
+        self.song_duration
+    }
+
     /// What the rows say ([module docs](self)).
     pub(crate) fn settings(&self) -> Settings {
         Settings {
@@ -435,10 +445,10 @@ pub(crate) fn instrument_choices() -> Vec<(String, crate::song::full_song::Gener
         .into_iter()
         .filter_map(|item| match item.id {
             Some(AddChannelPick::Kind(crate::song::ChannelKind::Synth(synth))) => {
-                Some((item.label, crate::song::full_song::GeneratedInstrument::Synth(synth)))
+                Some((item.label.into_owned(), crate::song::full_song::GeneratedInstrument::Synth(synth)))
             }
             Some(AddChannelPick::Plugin(uid)) => {
-                Some((item.label, crate::song::full_song::GeneratedInstrument::Plugin(uid)))
+                Some((item.label.into_owned(), crate::song::full_song::GeneratedInstrument::Plugin(uid)))
             }
             _ => None,
         })
