@@ -157,6 +157,123 @@ impl SongStructure {
     }
 }
 
+
+/// The generated parts of a full arrangement. Each vector is intended for its own MIDI lane.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeneratedParts {
+    pub drums: Vec<crate::song::Event>,
+    pub piano: Vec<crate::song::Event>,
+}
+
+/// Generates a complete drum part over every section, with restrained intro/bridge and stronger choruses.
+/// Pad indices follow the default drum kit: kick 0, snare 1, clap 2, closed hat 3, open hat 4.
+pub fn generate_drum_events(structure: &SongStructure, beats_per_bar: u8) -> Vec<crate::song::Event> {
+    use crate::song::{Event, PPQ};
+    let bpb = u32::from(beats_per_bar.max(1));
+    let mut events = Vec::new();
+    for section in &structure.sections {
+        for bar in section.start_bar..section.end_bar {
+            let section_name = section.name.to_ascii_lowercase();
+            let intro_or_outro = section_name.contains("intro") || section_name.contains("outro");
+            let bridge = section_name.contains("bridge");
+            let chorus = section_name.contains("chorus");
+            let bar_tick = u32::from(bar) * bpb * PPQ;
+            for beat in 0..bpb {
+                let kick = beat == 0 || (!intro_or_outro && !bridge && bpb >= 4 && beat == 2);
+                if kick {
+                    events.push(Event::Drum {
+                        pos: bar_tick + beat * PPQ,
+                        len_beats: 0.25,
+                        pad: 0,
+                        velocity: if chorus { 235 } else { 205 },
+                        pan: Event::DEFAULT_PAN,
+                        value: Event::DEFAULT_PITCH,
+                        repeat: 0,
+                    });
+                }
+                if bpb >= 4 && (beat == 1 || beat == 3) && !intro_or_outro {
+                    events.push(Event::Drum {
+                        pos: bar_tick + beat * PPQ,
+                        len_beats: 0.25,
+                        pad: if chorus && beat == 3 { 2 } else { 1 },
+                        velocity: if chorus { 225 } else { 195 },
+                        pan: Event::DEFAULT_PAN,
+                        value: Event::DEFAULT_PITCH,
+                        repeat: 0,
+                    });
+                }
+                if !intro_or_outro || beat % 2 == 0 {
+                    events.push(Event::Drum {
+                        pos: bar_tick + beat * PPQ / 2,
+                        len_beats: 0.125,
+                        pad: if chorus && beat + 1 == bpb { 4 } else { 3 },
+                        velocity: if beat % 2 == 0 { 150 } else { 112 },
+                        pan: Event::DEFAULT_PAN,
+                        value: Event::DEFAULT_PITCH,
+                        repeat: 0,
+                    });
+                }
+            }
+        }
+    }
+    events.sort_by_key(Event::pos);
+    events
+}
+
+/// Generates a piano chord part in the requested key. Chords change once per bar and follow I–V–vi–IV.
+pub fn generate_piano_events(
+    structure: &SongStructure,
+    root: u8,
+    minor: bool,
+    beats_per_bar: u8,
+) -> Vec<crate::song::Event> {
+    use crate::song::{Event, PPQ};
+    let bpb = f64::from(beats_per_bar.max(1));
+    let scale: [i32; 7] = if minor {
+        [0, 2, 3, 5, 7, 8, 10]
+    } else {
+        [0, 2, 4, 5, 7, 9, 11]
+    };
+    let degrees: [usize; 4] = if minor { [0, 5, 2, 6] } else { [0, 4, 5, 3] };
+    let mut events = Vec::new();
+    for bar in 0..structure.total_bars {
+        let degree = degrees[usize::from(bar) % degrees.len()];
+        let section = structure.sections.iter().find(|s| bar >= s.start_bar && bar < s.end_bar);
+        let sparse = section.is_some_and(|s| {
+            let name = s.name.to_ascii_lowercase();
+            name.contains("intro") || name.contains("bridge") || name.contains("outro")
+        });
+        let chord = [degree, (degree + 2) % 7, (degree + 4) % 7];
+        for (tone, scale_degree) in chord.into_iter().enumerate() {
+            let octave = if tone == 0 { 4 } else { 4 };
+            let key = (i32::from(root % 12) + octave * 12 + scale[scale_degree]).clamp(0, 127) as u8;
+            let pos = (f64::from(bar) * bpb * f64::from(PPQ)).round() as u32;
+            events.push(Event::Note {
+                pos,
+                len_beats: if sparse { bpb } else { (bpb / 2.0).max(0.5) },
+                key,
+                velocity: if sparse { 145 } else { 180 },
+                pan: Event::DEFAULT_PAN,
+                slide: false,
+            });
+        }
+    }
+    events
+}
+
+/// Builds the initial drum and piano layers for a complete arrangement.
+pub fn generate_parts(
+    structure: &SongStructure,
+    root: u8,
+    minor: bool,
+    beats_per_bar: u8,
+) -> GeneratedParts {
+    GeneratedParts {
+        drums: generate_drum_events(structure, beats_per_bar),
+        piano: generate_piano_events(structure, root, minor, beats_per_bar),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
