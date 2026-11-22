@@ -670,7 +670,6 @@ impl PianoRoll {
         let shown = live.as_ref().or(self.clip(song));
         let events = shown.map_or(&[][..], |c| &c.events);
         // The Humanize panel's preview, in the notes' order (so the selection still fits it), drawn in their place (the
-        // Generate panel's is in the clip: `Self::audition`).
         // ponytail: recomputed every frame the panel shows; keep it by (panel, events) if a huge clip makes that show.
         let preview = match self.menu {
             Some(Menu::Humanize(panel)) => Some(panel.preview(events, &self.selected)),
@@ -863,8 +862,6 @@ impl PianoRoll {
     /// The roll goes (the view left it, `app::left_view`) with a touch it will not see end ([`Self::end_touch`]); the
     /// key the key column holds and a new note's sound stop now.
     pub(crate) fn hide(&mut self, song: &mut Song) -> Vec<PianoRollAction> {
-        // An open menu or panel (Generate, #107) is cancelled: it never comes back by itself with the roll, and the
-        // Generate preview's clip gets its notes back.
         self.menu = None;
         let mut actions = self.end_touch();
         let column = column_keys(&std::mem::take(&mut self.keys_down));
