@@ -2510,15 +2510,6 @@ impl HoneydewApp {
                     Some(edit) => app.song_edited(edit == SongEdit::Final),
                     None => {}
                 }
-                // The main-screen GENERATE shortcut opens the selected channel's Piano Roll and its generator.
-                // The roll's existing clip-based generation logic remains unchanged.
-                if actions.generate {
-                    let channel = *app.selected;
-                    self.nav.view = View::PianoRoll(channel);
-                    self.slots
-                        .piano_roll
-                        .open_generate(ui.ctx(), &*app.song, channel);
-                }
                 navs.extend(actions.nav.take());
                 actions.playhead = app.playhead;
                 actions.seek = app.seek.or(actions.seek);
@@ -4022,16 +4013,6 @@ mod tests {
         assert_eq!(rig.app.nav.view, View::Playlist);
         // A clip edit reaches the song.
         assert_eq!(rig.app.song.channels[2].lanes[0].clips.len(), 1);
-    }
-
-    #[test]
-    fn main_screen_generator_stays_open_without_a_current_clip() {
-        let mut rig = Rig::with_synth();
-        rig.click_id(egui::Id::new("main_screen_generate"));
-        assert_eq!(rig.app.nav.view, View::PianoRoll(1));
-        rig.frame(vec![]);
-        assert_eq!(rig.app.nav.view, View::PianoRoll(1));
-        assert!(rig.app.slots.piano_roll.generator_open(1));
     }
 
     #[test]
