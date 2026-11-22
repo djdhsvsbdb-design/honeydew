@@ -36,7 +36,7 @@ jobs:
 
   android:
     # Build the real APK on the generator branch so Android compatibility is checked, not inferred.
-    if: github.ref == 'refs/heads/honeydew-generator-full-song-export'
+    if: github.ref == 'refs/heads/honeydew-generator-full-song-export' || github.ref == 'refs/heads/honeydew-remove-ai-generator'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
