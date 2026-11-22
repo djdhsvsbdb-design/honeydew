@@ -120,6 +120,8 @@
 mod humanize;
 pub(crate) mod notes;
 
+use std::hash::{BuildHasher, RandomState};
+
 use eframe::egui::{self, Align2, Color32, Id, Pos2, Rangef, Rect, Sense, Vec2, pos2, vec2};
 
 use crate::params::DRUM_SLOT_PARAMS;
