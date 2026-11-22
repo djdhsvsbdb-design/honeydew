@@ -25,20 +25,6 @@ pub struct State {
 }
 
 impl State {
-    /// Opens the `Generate` panel of `channel`'s roll from the transport bar's GENERATE button (PR #87). A channel
-    /// with no roll yet gets one; a second tap writes another progression.
-    pub(crate) fn open_generate(&mut self, ctx: &egui::Context, song: &Song, channel: usize) {
-        let roll =
-            (self.rolls.entry(channel)).or_insert_with(|| PianoRoll::for_channel(song, channel));
-        roll.open_generate(ctx);
-    }
-
-    /// Keeps a full-song generator visible even when the selected channel has no current clip.
-    pub(crate) fn generator_open(&self, channel: usize) -> bool {
-        self.rolls
-            .get(&channel)
-            .is_some_and(PianoRoll::generator_open)
-    }
 }
 
 /// Draws the piano roll of `channel`'s note lane in `app.regions.editor`; back to the playlist once the channel is gone
@@ -95,11 +81,6 @@ pub fn show(state: &mut State, ui: &mut egui::Ui, app: &mut AppCtx, channel: usi
                 },
                 None => AudioCommand::NoteOff { channel, key },
             }),
-            PianoRollAction::FullSongGenerated { first_channel } => {
-                *app.selected = first_channel;
-                app.song_edited(true);
-                nav = Some(Nav::Show(View::Playlist));
-            }
         }
     }
     nav
