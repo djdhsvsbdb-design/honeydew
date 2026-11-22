@@ -37,13 +37,6 @@ export HONEYDEW_ANDROID_BUILD_DIR=$CARGO_TARGET_DIR/android
 export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-4}
 mkdir -p "$HONEYDEW_ANDROID_BUILD_DIR/assets" "$HONEYDEW_ANDROID_BUILD_DIR/jniLibs"
 rm -rf "$HONEYDEW_ANDROID_BUILD_DIR/assets/content" "$HONEYDEW_ANDROID_BUILD_DIR/assets/models"
-# Bundle the trained NoteLM checkpoint when present. The generator has a deterministic fallback without it.
-if [ -f assets/honeydew_note_lm.f32 ]; then
-    mkdir -p "$HONEYDEW_ANDROID_BUILD_DIR/assets/models"
-    cp assets/honeydew_note_lm.f32 "$HONEYDEW_ANDROID_BUILD_DIR/assets/models/honeydew_note_lm.f32"
-else
-    echo "NoteLM checkpoint missing at assets/honeydew_note_lm.f32; the generator will use its fallback melody." >&2
-fi
 export HONEYDEW_ANDROID_BASE=$base
 if [ -z "$base" ]; then
     cat sounds/honeydew-sounds.zip.[0-9][0-9][0-9] > "$HONEYDEW_ANDROID_BUILD_DIR/sounds.zip"
@@ -96,12 +89,6 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
         assert len(data) == part['bytes'], part['file']
         assert base64.b64encode(hashlib.sha256(data).digest()).decode() == part['sha256'], part['file']
     assert not any(name.endswith('.gz') for name in apk.namelist()), 'redundant web assets'
-    model_path = 'assets/honeydew_note_lm.f32'
-    model_apk_path = 'assets/models/honeydew_note_lm.f32'
-    if __import__('os').path.isfile(model_path):
-        model = open(model_path, 'rb').read()
-        assert len(model) == 1_038_848, f'wrong NoteLM checkpoint size: {len(model)}'
-        assert apk.read(model_apk_path) == model, 'NoteLM checkpoint missing or changed in APK'
     print(f"Verified APK signature, alignment and {len(parts)} bundled sound packs")
 PY
 version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
