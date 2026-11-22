@@ -290,8 +290,6 @@ pub struct ScreenActions {
     pub step: Option<Step>,
     /// SOLO CLIP was clicked.
     pub preview: bool,
-    /// The main-screen GENERATE shortcut was clicked: open the selected channel's Piano Roll generator.
-    pub generate: bool,
     /// A ruler's tap this frame, in any view ([`AppCtx::set_playhead`]): the playhead's song tick.
     pub playhead: Option<u64>,
     /// A playhead knob's drag let go, the playlist's or an editor's ([`AppCtx::seek`]): seek to this song tick, playing
@@ -1225,28 +1223,6 @@ impl MainScreen {
         let text = cx.theme.colors.text.to_color32();
         self.show_keyboard_button(ui, cx, regions.screen);
         let (screen, area) = (regions.screen, regions.area);
-
-        // Main-screen GENERATE shortcut: kept in the free upper-left corner, opposite the app logo.
-        let generator_size = m.u(PANEL_BUTTON_W);
-        let generator = Rect::from_min_size(
-            pos2(screen.left() + m.u(0.2), screen.top() + m.u(0.2)),
-            Vec2::splat(generator_size),
-        );
-        let generator_hit = Rect::from_min_max(
-            generator.min,
-            pos2(generator.right() + m.u(0.5), generator.bottom() + m.u(0.3)),
-        );
-        let generate = open_panel_button(
-            ui,
-            Id::new("main_screen_generate"),
-            (generator, generator_hit),
-            (IconId::Randomize, text),
-            cx,
-        );
-        crate::ui::tooltip::tip(ui, generator_hit, "Generate", None);
-        if generate.clicked() {
-            actions.generate = true;
-        }
 
         let rack_open = regions.rack.left() < area.right();
         let mut place = tab_place;
