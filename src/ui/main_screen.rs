@@ -2158,9 +2158,6 @@ pub struct TransportSlots {
     pub keys: Rect,
     /// The free space right of the keyboard settings, up to REC (one row) or SOLO CLIP's slot, shown or not (two rows).
     pub scale: Rect,
-    /// GENERATE (PR #87), one slot at the scale room's right end, drawn in the piano roll only; none when the room is
-    /// narrower than a slot.
-    pub generate: Option<Rect>,
     pub rec: Rect,
     pub rewind: Rect,
     pub play: Rect,
@@ -2224,7 +2221,6 @@ pub fn transport_slots(
         Rect::from_center_size(pos2(x, row.center().y), vec2(px, h))
     };
     let scale = Rect::from_x_y_ranges(keys.right()..=scale_end.max(keys.right()), row.y_range());
-    let generate = (scale.width() >= b).then(|| slot(scale.right() - b));
     let mut dividers = Vec::new();
     if solo {
         dividers.push(vertical(if two {
@@ -2242,7 +2238,6 @@ pub fn transport_slots(
         mixer,
         keys,
         scale,
-        generate,
         rec,
         rewind: centre(1.0),
         play: centre(2.0),
